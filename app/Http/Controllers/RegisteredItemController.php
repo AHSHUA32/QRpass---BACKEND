@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\RegisteredItem;
+use App\Models\Notification;
+use App\Models\User;
 use Illuminate\Http\Request;
 
 class RegisteredItemController extends Controller
@@ -43,12 +45,42 @@ class RegisteredItemController extends Controller
             'qr_code' => null,
         ]);
 
+        // Notification for the student
+        Notification::create([
+            'user_id' => $request->user()->id,
+            'type' => 'item_submitted',
+            'title' => 'Item Registration Submitted',
+            'message' =>
+                'Your item "' .
+                $item->item_name .
+                '" has been submitted and is waiting for PCO approval.',
+            'is_read' => false,
+            'read_at' => null,
+        ]);
+
+        // Notifications for all PCO staff
+        $pcoUsers = User::where('role', 'sao')->get();
+
+        foreach ($pcoUsers as $pcoUser) {
+            Notification::create([
+                'user_id' => $pcoUser->id,
+                'type' => 'new_item_registration',
+                'title' => 'New Item Registration',
+                'message' =>
+                    $request->user()->name .
+                    ' submitted "' .
+                    $item->item_name .
+                    '" for PCO approval.',
+                'is_read' => false,
+                'read_at' => null,
+            ]);
+        }
+
         return response()->json([
             'message' => 'Item registration submitted successfully.',
             'item' => $item,
         ], 201);
     }
-
     // PCO - view all pending item requests
     public function pending()
     {
@@ -76,26 +108,38 @@ class RegisteredItemController extends Controller
 
     // PCO - approve item and generate QR code
     public function approve($id)
-    {
-        $item = RegisteredItem::findOrFail($id);
+{
+    $item = RegisteredItem::findOrFail($id);
 
-        $item->status = 'approved';
+    $item->status = 'approved';
 
-        $item->qr_code = 'QRPASS-' . str_pad(
+    $item->qr_code =
+        'QRPASS-' . str_pad(
             $item->id,
             5,
             '0',
             STR_PAD_LEFT
         );
 
-        $item->save();
+    $item->save();
 
-        return response()->json([
-            'message' => 'Item approved successfully.',
-            'item' => $item,
-        ]);
-    }
+    Notification::create([
+        'user_id' => $item->user_id,
+        'type' => 'item_approved',
+        'title' => 'Item Registration Approved',
+        'message' =>
+            'Your item "' .
+            $item->item_name .
+            '" has been approved. Your QR code is now available.',
+        'is_read' => false,
+        'read_at' => null,
+    ]);
 
+    return response()->json([
+        'message' => 'Item approved successfully.',
+        'item' => $item,
+    ]);
+}
     // Security - verify item using QR code or serial number
     public function verify(Request $request)
     {
