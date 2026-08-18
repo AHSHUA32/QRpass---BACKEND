@@ -45,7 +45,11 @@ class UserController extends Controller
 
                 'pco' => User::where(
                     'role',
+<<<<<<< HEAD
                     'sao'
+=======
+                    'pco'
+>>>>>>> 6354b62 (Standardize PCO role and update QRPass backend)
                 )->count(),
 
                 'system_admins' => User::where(
@@ -90,7 +94,11 @@ class UserController extends Controller
 
             'role' => [
                 'required',
+<<<<<<< HEAD
                 'in:student,security,sao,sysadmin',
+=======
+                'in:student,security,pco,sysadmin',
+>>>>>>> 6354b62 (Standardize PCO role and update QRPass backend)
             ],
 
             'password' => [
@@ -168,7 +176,11 @@ class UserController extends Controller
 
             'role' => [
                 'required',
+<<<<<<< HEAD
                 'in:student,security,sao,sysadmin',
+=======
+                'in:student,security,pco,sysadmin',
+>>>>>>> 6354b62 (Standardize PCO role and update QRPass backend)
             ],
         ]);
 

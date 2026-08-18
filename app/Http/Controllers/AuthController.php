@@ -47,7 +47,11 @@ class AuthController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
             'username' => 'required|string|max:255|unique:users,username',
+<<<<<<< HEAD
             'role' => 'required|in:student,security,sao',
+=======
+            'role' => 'required|in:student,security,pco',
+>>>>>>> 6354b62 (Standardize PCO role and update QRPass backend)
             'password' => 'required|string|min:6',
         ]);
 

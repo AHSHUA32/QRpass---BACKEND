@@ -117,7 +117,11 @@ Route::middleware('auth:sanctum')->group(function () {
     */
 
     Route::middleware(
+<<<<<<< HEAD
         'role:sao'
+=======
+        'role:pco'
+>>>>>>> 6354b62 (Standardize PCO role and update QRPass backend)
     )->group(function () {
 
         /*
@@ -152,7 +156,11 @@ Route::middleware('auth:sanctum')->group(function () {
     */
 
     Route::middleware(
+<<<<<<< HEAD
         'role:sao,sysadmin'
+=======
+        'role:pco,sysadmin'
+>>>>>>> 6354b62 (Standardize PCO role and update QRPass backend)
     )->group(function () {
 
         Route::get(
@@ -318,7 +326,11 @@ Route::middleware('auth:sanctum')->group(function () {
     */
 
     Route::middleware(
+<<<<<<< HEAD
         'role:student,security,sao,sysadmin'
+=======
+        'role:student,security,pco,sysadmin'
+>>>>>>> 6354b62 (Standardize PCO role and update QRPass backend)
     )->group(function () {
 
         Route::get(

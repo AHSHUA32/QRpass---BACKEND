@@ -59,7 +59,11 @@ class RegisteredItemController extends Controller
         ]);
 
         // Notifications for all PCO staff
+<<<<<<< HEAD
         $pcoUsers = User::where('role', 'sao')->get();
+=======
+        $pcoUsers = User::where('role', 'pco')->get();
+>>>>>>> 6354b62 (Standardize PCO role and update QRPass backend)
 
         foreach ($pcoUsers as $pcoUser) {
             Notification::create([
