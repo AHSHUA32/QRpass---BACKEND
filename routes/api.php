@@ -38,7 +38,26 @@ Route::post(
     '/register',
     [AuthController::class, 'register']
 );
+/*
+|--------------------------------------------------------------------------
+| PASSWORD RESET
+|--------------------------------------------------------------------------
+*/
 
+Route::post(
+    '/forgot-password',
+    [AuthController::class, 'requestPasswordReset']
+);
+
+Route::post(
+    '/verify-reset-code',
+    [AuthController::class, 'verifyPasswordResetCode']
+);
+
+Route::post(
+    '/reset-password',
+    [AuthController::class, 'resetPassword']
+);
 
 /*
 |--------------------------------------------------------------------------
