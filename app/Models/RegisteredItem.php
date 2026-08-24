@@ -19,7 +19,17 @@ class RegisteredItem extends Model
         'purpose',
         'status',
         'qr_code',
+        'approved_at',
+        'qr_expires_at',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'approved_at' => 'datetime',
+            'qr_expires_at' => 'datetime',
+        ];
+    }
 
     public function user()
     {

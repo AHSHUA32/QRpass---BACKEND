@@ -13,6 +13,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\SystemRecordController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\AccountController;
 
 
 /*
@@ -66,6 +67,28 @@ Route::post(
 */
 
 Route::middleware('auth:sanctum')->group(function () {
+                // ACCOUNT SETTINGS
+            Route::get('/account', [AccountController::class, 'show']);
+
+            Route::put('/account/profile', [
+                AccountController::class,
+                'updateProfile'
+            ]);
+
+            Route::put('/account/password', [
+                AccountController::class,
+                'updatePassword'
+            ]);
+
+            Route::post('/account/profile-photo', [
+                AccountController::class,
+                'uploadProfilePhoto'
+            ]);
+
+            Route::delete('/account/profile-photo', [
+                AccountController::class,
+                'removeProfilePhoto'
+            ]);
 
     /*
     |--------------------------------------------------------------------------
