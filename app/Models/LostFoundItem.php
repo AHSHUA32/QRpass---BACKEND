@@ -9,107 +9,54 @@ class LostFoundItem extends Model
 {
     use HasFactory;
 
-    /*
-    |--------------------------------------------------------------------------
-    | MASS ASSIGNABLE FIELDS
-    |--------------------------------------------------------------------------
-    */
-
     protected $fillable = [
-
-        /*
-        |--------------------------------------------------------------------------
-        | LEGACY / REPORTING USER
-        |--------------------------------------------------------------------------
-        |
-        | We keep reported_by because it already exists in the current
-        | database. For new CSU-created records, this will also point to
-        | the CSU personnel who encoded the report.
-        |
-        */
-
         'reported_by',
 
-
-        /*
-        |--------------------------------------------------------------------------
-        | PERSON WHO FOUND / TURNED OVER THE ITEM
-        |--------------------------------------------------------------------------
-        */
-
+        // Found report
         'found_by_user_id',
 
+        // Lost report
+        'lost_by_user_id',
 
-        /*
-        |--------------------------------------------------------------------------
-        | CSU PERSONNEL WHO PROCESSED THE REPORT
-        |--------------------------------------------------------------------------
-        */
-
+        // CSU / Security processor
         'processed_by_user_id',
 
-
-        /*
-        |--------------------------------------------------------------------------
-        | REPORT INFORMATION
-        |--------------------------------------------------------------------------
-        */
-
+        // Report details
         'report_type',
-
         'item_name',
-
         'category',
-
         'brand_model',
-
         'color',
 
+        // Found information
         'location_found',
-
-        'description',
-
-        'status',
-
         'date_found',
 
+        // Lost information
+        'location_lost',
+        'date_lost',
 
-        /*
-        |--------------------------------------------------------------------------
-        | CLAIM INFORMATION
-        |--------------------------------------------------------------------------
-        */
+        'description',
+        'status',
 
+        // Claim information
         'claimed_by',
-
         'claimed_at',
     ];
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | ATTRIBUTE CASTS
-    |--------------------------------------------------------------------------
-    */
 
     protected function casts(): array
     {
         return [
-            'date_found' => 'date',
-
+            'date_found' => 'datetime',
+            'date_lost' => 'datetime',
             'claimed_at' => 'datetime',
         ];
     }
 
-
     /*
     |--------------------------------------------------------------------------
-    | FINDER
+    | PERSON WHO FOUND / TURNED OVER ITEM
     |--------------------------------------------------------------------------
-    |
-    | The student/user who physically found the item and turned it over
-    | to the CSU office.
-    |
     */
 
     public function finder()
@@ -120,15 +67,24 @@ class LostFoundItem extends Model
         );
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | PERSON WHO LOST THE ITEM
+    |--------------------------------------------------------------------------
+    */
+
+    public function lostBy()
+    {
+        return $this->belongsTo(
+            User::class,
+            'lost_by_user_id'
+        );
+    }
 
     /*
     |--------------------------------------------------------------------------
-    | CSU PROCESSOR
+    | CSU / SECURITY PROCESSOR
     |--------------------------------------------------------------------------
-    |
-    | The CSU personnel who officially entered and processed the
-    | Lost & Found record.
-    |
     */
 
     public function processor()
@@ -139,14 +95,10 @@ class LostFoundItem extends Model
         );
     }
 
-
     /*
     |--------------------------------------------------------------------------
     | REPORTER
     |--------------------------------------------------------------------------
-    |
-    | Kept for compatibility with existing Lost & Found records.
-    |
     */
 
     public function reporter()
@@ -157,14 +109,10 @@ class LostFoundItem extends Model
         );
     }
 
-
     /*
     |--------------------------------------------------------------------------
     | CLAIMANT
     |--------------------------------------------------------------------------
-    |
-    | The student/user claiming that the found item belongs to them.
-    |
     */
 
     public function claimant()

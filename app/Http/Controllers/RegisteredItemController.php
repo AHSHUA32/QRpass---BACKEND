@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\SecurityIncident;
 use App\Models\RegisteredItem;
 use App\Models\Notification;
 use App\Models\User;
@@ -96,15 +97,61 @@ class RegisteredItemController extends Controller
 
     // PCO - view all registered items
     public function allItems()
-    {
-        $items = RegisteredItem::with('user')
-            ->latest()
-            ->get();
+{
+    $flaggedItemIds = SecurityIncident::where(
+        'status',
+        'Flagged'
+    )
+        ->whereNotNull('registered_item_id')
+        ->pluck('registered_item_id')
+        ->unique();
 
-        return response()->json([
-            'items' => $items
-        ]);
-    }
+    $items = RegisteredItem::with('user')
+        ->latest()
+        ->get()
+        ->map(function ($item) use ($flaggedItemIds) {
+
+            $isFlagged = $flaggedItemIds->contains(
+                $item->id
+            );
+
+            $isExpired =
+                $item->qr_expires_at &&
+                now()->greaterThan(
+                    $item->qr_expires_at
+                );
+
+            $isActiveQr =
+                $item->status === 'approved' &&
+                !empty($item->qr_code) &&
+                !$isExpired &&
+                !$isFlagged;
+
+            $item->is_flagged = $isFlagged;
+            $item->is_expired = $isExpired;
+            $item->is_active_qr = $isActiveQr;
+
+            if ($isFlagged) {
+                $item->registry_status = 'Flagged';
+            } elseif ($isExpired) {
+                $item->registry_status = 'Expired';
+            } elseif ($isActiveQr) {
+                $item->registry_status = 'Active';
+            } elseif ($item->status === 'pending') {
+                $item->registry_status = 'Pending';
+            } else {
+                $item->registry_status = ucfirst(
+                    $item->status
+                );
+            }
+
+            return $item;
+        });
+
+    return response()->json([
+        'items' => $items
+    ]);
+}
 
     // PCO - approve item and generate QR code
     public function approve($id)

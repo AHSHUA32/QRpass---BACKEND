@@ -18,6 +18,7 @@ class LostFoundItemController extends Controller
     {
         $items = LostFoundItem::with([
             'finder:id,name,username,role',
+            'lostBy:id,name,username,role',
             'processor:id,name,username,role',
             'reporter:id,name,username,role',
             'claimant:id,name,username,role',
@@ -30,20 +31,10 @@ class LostFoundItemController extends Controller
         ]);
     }
 
-
     /*
     |--------------------------------------------------------------------------
-    | CREATE FOUND ITEM RECORD
+    | CREATE LOST OR FOUND REPORT
     |--------------------------------------------------------------------------
-    |
-    | Workflow:
-    |
-    | 1. A person finds an item.
-    | 2. The person physically turns the item over to CSU.
-    | 3. CSU enters the finder Student/Employee ID.
-    | 4. QRPass resolves that ID to FoundByUserID.
-    | 5. Logged-in CSU becomes ProcessedByUserID.
-    |
     */
 
     public function store(Request $request)
@@ -59,23 +50,47 @@ class LostFoundItemController extends Controller
         if ($user->role !== 'security') {
             return response()->json([
                 'message' =>
-                    'Only CSU Security Personnel can create Lost & Found records.',
+                    'Only Security Personnel can create Lost & Found reports.',
             ], 403);
         }
 
-
         /*
         |--------------------------------------------------------------------------
-        | VALIDATE INPUT
+        | VALIDATION
         |--------------------------------------------------------------------------
         */
 
         $validated = $request->validate([
-            'found_by_identifier' => [
+            'report_type' => [
                 'required',
+                'in:found,lost',
+            ],
+
+            /*
+            |--------------------------------------------------------------------------
+            | PERSON
+            |--------------------------------------------------------------------------
+            */
+
+            'found_by_identifier' => [
+                'nullable',
+                'required_if:report_type,found',
                 'string',
                 'max:255',
             ],
+
+            'lost_by_identifier' => [
+                'nullable',
+                'required_if:report_type,lost',
+                'string',
+                'max:255',
+            ],
+
+            /*
+            |--------------------------------------------------------------------------
+            | ITEM DETAILS
+            |--------------------------------------------------------------------------
+            */
 
             'item_name' => [
                 'required',
@@ -101,98 +116,222 @@ class LostFoundItemController extends Controller
                 'max:100',
             ],
 
-            'location_found' => [
-                'required',
-                'string',
-                'max:255',
-            ],
-
-            'date_found' => [
-                'required',
-                'date',
-                'before_or_equal:today',
-            ],
-
             'description' => [
                 'nullable',
                 'string',
                 'max:2000',
             ],
-        ]);
 
+            /*
+            |--------------------------------------------------------------------------
+            | FOUND DETAILS
+            |--------------------------------------------------------------------------
+            */
+
+            'location_found' => [
+                'nullable',
+                'required_if:report_type,found',
+                'string',
+                'max:255',
+            ],
+
+            'date_found' => [
+                'nullable',
+                'required_if:report_type,found',
+                'date',
+                'before_or_equal:today',
+            ],
+
+            /*
+            |--------------------------------------------------------------------------
+            | LOST DETAILS
+            |--------------------------------------------------------------------------
+            */
+
+            'location_lost' => [
+                'nullable',
+                'required_if:report_type,lost',
+                'string',
+                'max:255',
+            ],
+
+            'date_lost' => [
+                'nullable',
+                'required_if:report_type,lost',
+                'date',
+                'before_or_equal:today',
+            ],
+        ]);
 
         /*
         |--------------------------------------------------------------------------
-        | FIND PERSON WHO TURNED OVER THE ITEM
+        | FOUND REPORT
         |--------------------------------------------------------------------------
-        |
-        | username currently contains the Student/Employee ID in QRPass.
-        |
         */
 
-        $finder = User::where(
+        if ($validated['report_type'] === 'found') {
+            $finder = User::where(
+                'username',
+                trim($validated['found_by_identifier'])
+            )->first();
+
+            if (!$finder) {
+                return response()->json([
+                    'message' =>
+                        'No QRPass user was found with that Student/Employee ID.',
+                ], 422);
+            }
+
+            $item = LostFoundItem::create([
+                'reported_by' =>
+                    $user->id,
+
+                'found_by_user_id' =>
+                    $finder->id,
+
+                'lost_by_user_id' =>
+                    null,
+
+                'processed_by_user_id' =>
+                    $user->id,
+
+                'report_type' =>
+                    'found',
+
+                'item_name' =>
+                    trim($validated['item_name']),
+
+                'category' =>
+                    !empty($validated['category'])
+                        ? trim($validated['category'])
+                        : null,
+
+                'brand_model' =>
+                    !empty($validated['brand_model'])
+                        ? trim($validated['brand_model'])
+                        : null,
+
+                'color' =>
+                    !empty($validated['color'])
+                        ? trim($validated['color'])
+                        : null,
+
+                'location_found' =>
+                    trim($validated['location_found']),
+
+                'location_lost' =>
+                    null,
+
+                'date_found' =>
+                    $validated['date_found'],
+
+                'date_lost' =>
+                    null,
+
+                'description' =>
+                    !empty($validated['description'])
+                        ? trim($validated['description'])
+                        : null,
+
+                'status' =>
+                    'Found',
+
+                'claimed_by' =>
+                    null,
+
+                'claimed_at' =>
+                    null,
+            ]);
+
+            $item->load([
+                'finder:id,name,username,role',
+                'lostBy:id,name,username,role',
+                'processor:id,name,username,role',
+                'reporter:id,name,username,role',
+                'claimant:id,name,username,role',
+            ]);
+
+            return response()->json([
+                'message' =>
+                    'Found item recorded successfully. Credit was assigned to ' .
+                    $finder->name .
+                    '.',
+
+                'item' => $item,
+            ], 201);
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | LOST REPORT
+        |--------------------------------------------------------------------------
+        */
+
+        $lostBy = User::where(
             'username',
-            trim($validated['found_by_identifier'])
+            trim($validated['lost_by_identifier'])
         )->first();
 
-        if (!$finder) {
+        if (!$lostBy) {
             return response()->json([
                 'message' =>
                     'No QRPass user was found with that Student/Employee ID.',
             ], 422);
         }
 
-
-        /*
-        |--------------------------------------------------------------------------
-        | CREATE RECORD
-        |--------------------------------------------------------------------------
-        */
-
         $item = LostFoundItem::create([
             'reported_by' =>
                 $user->id,
 
             'found_by_user_id' =>
-                $finder->id,
+                null,
+
+            'lost_by_user_id' =>
+                $lostBy->id,
 
             'processed_by_user_id' =>
                 $user->id,
 
             'report_type' =>
-                'found',
+                'lost',
 
             'item_name' =>
                 trim($validated['item_name']),
 
             'category' =>
-                isset($validated['category'])
+                !empty($validated['category'])
                     ? trim($validated['category'])
                     : null,
 
             'brand_model' =>
-                isset($validated['brand_model'])
+                !empty($validated['brand_model'])
                     ? trim($validated['brand_model'])
                     : null,
 
             'color' =>
-                isset($validated['color'])
+                !empty($validated['color'])
                     ? trim($validated['color'])
                     : null,
 
             'location_found' =>
-                trim($validated['location_found']),
+                null,
+
+            'location_lost' =>
+                trim($validated['location_lost']),
+
+            'date_found' =>
+                null,
+
+            'date_lost' =>
+                $validated['date_lost'],
 
             'description' =>
-                isset($validated['description'])
+                !empty($validated['description'])
                     ? trim($validated['description'])
                     : null,
 
-            'date_found' =>
-                $validated['date_found'],
-
             'status' =>
-                'Found',
+                'Lost',
 
             'claimed_by' =>
                 null,
@@ -201,42 +340,32 @@ class LostFoundItemController extends Controller
                 null,
         ]);
 
-
-        /*
-        |--------------------------------------------------------------------------
-        | LOAD RELATIONSHIPS
-        |--------------------------------------------------------------------------
-        */
-
         $item->load([
             'finder:id,name,username,role',
+            'lostBy:id,name,username,role',
             'processor:id,name,username,role',
+            'reporter:id,name,username,role',
             'claimant:id,name,username,role',
         ]);
 
-
         return response()->json([
             'message' =>
-                'Found item recorded successfully. Credit was assigned to ' .
-                $finder->name .
+                'Lost item report recorded successfully for ' .
+                $lostBy->name .
                 '.',
 
-            'item' =>
-                $item,
+            'item' => $item,
         ], 201);
     }
 
-
     /*
     |--------------------------------------------------------------------------
-    | STUDENT CLAIM
+    | STUDENT CLAIM FOUND ITEM
     |--------------------------------------------------------------------------
     */
 
-    public function claim(
-        Request $request,
-        $id
-    ) {
+    public function claim(Request $request, $id)
+    {
         $user = $request->user();
 
         if (!$user) {
@@ -252,20 +381,33 @@ class LostFoundItemController extends Controller
             ], 403);
         }
 
-        $item =
-            LostFoundItem::findOrFail($id);
-
+        $item = LostFoundItem::findOrFail($id);
 
         /*
         |--------------------------------------------------------------------------
-        | MUST STILL BE AVAILABLE
+        | ONLY FOUND REPORTS CAN BE CLAIMED
         |--------------------------------------------------------------------------
         */
 
         if (
-            strtolower(
-                (string) $item->status
-            ) === 'recovered'
+            strtolower((string) $item->report_type) !==
+            'found'
+        ) {
+            return response()->json([
+                'message' =>
+                    'Lost reports cannot be claimed.',
+            ], 422);
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | ALREADY RECOVERED
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            strtolower((string) $item->status) ===
+            'recovered'
         ) {
             return response()->json([
                 'message' =>
@@ -273,15 +415,13 @@ class LostFoundItemController extends Controller
             ], 422);
         }
 
-
         /*
         |--------------------------------------------------------------------------
-        | PREVENT DUPLICATE CLAIM
+        | DUPLICATE CLAIM
         |--------------------------------------------------------------------------
         */
 
         if ($item->claimed_by) {
-
             if (
                 (int) $item->claimed_by ===
                 (int) $user->id
@@ -294,10 +434,9 @@ class LostFoundItemController extends Controller
 
             return response()->json([
                 'message' =>
-                    'This item already has a pending claim for CSU verification.',
+                    'This item already has a pending claim for Security verification.',
             ], 422);
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -316,27 +455,25 @@ class LostFoundItemController extends Controller
 
         $item->save();
 
-
         $item->load([
             'finder:id,name,username,role',
+            'lostBy:id,name,username,role',
             'processor:id,name,username,role',
+            'reporter:id,name,username,role',
             'claimant:id,name,username,role',
         ]);
 
-
         return response()->json([
             'message' =>
-                'Claim submitted successfully. Please proceed to the CSU office for ownership verification.',
+                'Claim submitted successfully. Please proceed to the Security office for ownership verification.',
 
-            'item' =>
-                $item,
+            'item' => $item,
         ]);
     }
 
-
     /*
     |--------------------------------------------------------------------------
-    | CSU MARK AS RECOVERED
+    | SECURITY MARK ITEM AS RECOVERED
     |--------------------------------------------------------------------------
     */
 
@@ -345,81 +482,139 @@ class LostFoundItemController extends Controller
         $id
     ) {
         $user = $request->user();
-
+    
         if (!$user) {
             return response()->json([
                 'message' => 'Unauthenticated.',
             ], 401);
         }
-
+    
         if ($user->role !== 'security') {
             return response()->json([
                 'message' =>
-                    'Only CSU Security Personnel can release Lost & Found items.',
+                    'Only Security Personnel can mark Lost & Found items as recovered.',
             ], 403);
         }
-
-        $item =
-            LostFoundItem::findOrFail($id);
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | CLAIM REQUIRED
-        |--------------------------------------------------------------------------
-        */
-
-        if (!$item->claimed_by) {
-            return response()->json([
-                'message' =>
-                    'This item does not have a pending claimant.',
-            ], 422);
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | ALREADY RECOVERED
-        |--------------------------------------------------------------------------
-        */
-
+    
+        $item = LostFoundItem::findOrFail($id);
+    
         if (
-            strtolower(
-                (string) $item->status
-            ) === 'recovered'
+            strtolower((string) $item->status) ===
+            'recovered'
         ) {
             return response()->json([
                 'message' =>
                     'This item has already been marked as recovered.',
             ], 422);
         }
-
-
+    
+        $reportType =
+            strtolower((string) $item->report_type);
+    
         /*
         |--------------------------------------------------------------------------
-        | RECOVERED
+        | FOUND REPORT
         |--------------------------------------------------------------------------
+        | A found item must have an approved claimant before release.
         */
-
+    
+        if ($reportType === 'found') {
+            if (!$item->claimed_by) {
+                return response()->json([
+                    'message' =>
+                        'This found item does not have a pending claimant.',
+                ], 422);
+            }
+    
+            $item->status = 'Recovered';
+            $item->save();
+    
+            $item->load([
+                'finder:id,name,username,role',
+                'lostBy:id,name,username,role',
+                'processor:id,name,username,role',
+                'reporter:id,name,username,role',
+                'claimant:id,name,username,role',
+            ]);
+    
+            return response()->json([
+                'message' =>
+                    'Ownership verified. The found item has been returned to its rightful owner.',
+                'item' => $item,
+            ]);
+        }
+    
+        /*
+        |--------------------------------------------------------------------------
+        | LOST REPORT
+        |--------------------------------------------------------------------------
+        | Before marking a lost item recovered, Security must record:
+        | - who found / returned it
+        | - where it was found / turned over
+        | - exact date and time
+        */
+    
+        $validated = $request->validate([
+            'found_by_identifier' => [
+                'required',
+                'string',
+                'max:255',
+            ],
+    
+            'location_found' => [
+                'required',
+                'string',
+                'max:255',
+            ],
+    
+            'date_found' => [
+                'required',
+                'date',
+                'before_or_equal:now',
+            ],
+        ]);
+    
+        $finder = User::where(
+            'username',
+            trim($validated['found_by_identifier'])
+        )->first();
+    
+        if (!$finder) {
+            return response()->json([
+                'message' =>
+                    'No QRPass user was found with that Student/Employee ID.',
+            ], 422);
+        }
+    
+        $item->found_by_user_id =
+            $finder->id;
+    
+        $item->location_found =
+            trim($validated['location_found']);
+    
+        $item->date_found =
+            $validated['date_found'];
+    
         $item->status =
             'Recovered';
-
+    
         $item->save();
-
-
+    
         $item->load([
             'finder:id,name,username,role',
+            'lostBy:id,name,username,role',
             'processor:id,name,username,role',
+            'reporter:id,name,username,role',
             'claimant:id,name,username,role',
         ]);
-
-
+    
         return response()->json([
             'message' =>
-                'Ownership verified. The item has been marked as recovered.',
-
-            'item' =>
-                $item,
+                'Lost item recovered successfully. Turnover credit was assigned to ' .
+                $finder->name .
+                '.',
+    
+            'item' => $item,
         ]);
     }
 }
