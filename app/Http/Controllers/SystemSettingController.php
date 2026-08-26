@@ -271,4 +271,20 @@ class SystemSettingController extends Controller
                 $settings,
         ]);
     }
+
+    public function sessionPolicy()
+{
+    $settings =
+        \App\Models\SystemSetting::first();
+
+    return response()->json([
+        'session_timeout_minutes' =>
+            (int) (
+                $settings?->session_timeout ??
+                30
+            ),
+    ]);
+}
+
+
 }

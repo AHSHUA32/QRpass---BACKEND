@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 
+use App\Http\Controllers\PerformanceController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\RegisteredItemController;
@@ -87,9 +88,10 @@ Route::post(
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(
-    'auth:sanctum'
-)->group(function () {
+    Route::middleware([
+        'session.timeout',
+        'auth:sanctum',
+    ])->group(function () {
 
 
     /*
@@ -137,7 +139,20 @@ Route::middleware(
             'removeProfilePhoto',
         ]
     );
+    
+        /*
+    |--------------------------------------------------------------------------
+    | SESSION POLICY
+    |--------------------------------------------------------------------------
+    */
 
+    Route::get(
+        '/session-policy',
+        [
+            SystemSettingController::class,
+            'sessionPolicy',
+        ]
+    );
 
     /*
     |--------------------------------------------------------------------------
@@ -173,18 +188,27 @@ Route::middleware(
 
         Route::get(
             '/items',
-            [
-                RegisteredItemController::class,
-                'index',
-            ]
+            [RegisteredItemController::class, 'index']
         );
 
+        Route::get(
+            '/items/qr-codes',
+            [
+                RegisteredItemController::class,
+                'qrCodes',
+            ]
+        )->middleware(
+            'permission:view_qr_codes'
+        );
+        
         Route::post(
             '/items',
             [
                 RegisteredItemController::class,
                 'store',
             ]
+        )->middleware(
+            'permission:register_items'
         );
 
 
@@ -592,30 +616,38 @@ Route::middleware(
                 UserController::class,
                 'index',
             ]
+        )->middleware(
+            'permission:manage_users'
         );
-
+        
         Route::post(
             '/users',
             [
                 UserController::class,
                 'store',
             ]
+        )->middleware(
+            'permission:manage_users'
         );
-
+        
         Route::put(
             '/users/{id}',
             [
                 UserController::class,
                 'update',
             ]
+        )->middleware(
+            'permission:manage_users'
         );
-
+        
         Route::put(
             '/users/{id}/status',
             [
                 UserController::class,
                 'updateStatus',
             ]
+        )->middleware(
+            'permission:manage_users'
         );
 
 
@@ -655,6 +687,20 @@ Route::middleware(
                 'destroy',
             ]
         );
+
+                    /*
+            |--------------------------------------------------------------------------
+            | PERFORMANCE MONITORING
+            |--------------------------------------------------------------------------
+            */
+
+            Route::get(
+                '/performance',
+                [
+                    PerformanceController::class,
+                    'index',
+                ]
+            );
 
 
         /*

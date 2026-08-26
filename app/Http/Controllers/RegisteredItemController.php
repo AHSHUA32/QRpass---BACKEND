@@ -29,6 +29,27 @@ class RegisteredItemController extends Controller
         ]);
     }
 
+    public function qrCodes(Request $request)
+{
+    $items = RegisteredItem::where(
+        'user_id',
+        $request->user()->id
+    )
+        ->whereIn(
+            'status',
+            [
+                'approved',
+                'pending',
+            ]
+        )
+        ->latest()
+        ->get();
+
+    return response()->json([
+        'items' => $items,
+    ]);
+}
+
     // =========================================================
     // STUDENT - REGISTER NEW ITEM
     // =========================================================
