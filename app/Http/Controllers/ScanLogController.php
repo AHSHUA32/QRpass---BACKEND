@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\AuditLogger;
 use App\Models\RegisteredItem;
 use App\Models\ScanLog;
 use Illuminate\Http\Request;
@@ -36,6 +37,39 @@ class ScanLogController extends Controller
             'result' => 'Verified',
             'scanned_at' => now(),
         ]);
+
+                        /*
+            |--------------------------------------------------------------------------
+            | Audit Log - QR Scan
+            |--------------------------------------------------------------------------
+            */
+
+            AuditLogger::log(
+                action: 'scan_item',
+                description: $request->user()->name .
+                    ' scanned "' .
+                    $item->item_name .
+                    '" at ' .
+                    $request->gate .
+                    ' (' .
+                    $request->direction .
+                    ').',
+                eventType: 'qr_scan',
+                module: 'QR Verification',
+                status: 'success',
+                metadata: [
+                    'scan_log_id' => $log->id,
+                    'item_id' => $item->id,
+                    'item_name' => $item->item_name,
+                    'item_type' => $item->item_type,
+                    'serial_number' => $item->serial_number,
+                    'qr_code' => $item->qr_code,
+                    'gate' => $request->gate,
+                    'direction' => $request->direction,
+                    'result' => 'Verified',
+                ],
+                user: $request->user()
+            );
 
         return response()->json([
             'message' => 'Scan logged successfully.',

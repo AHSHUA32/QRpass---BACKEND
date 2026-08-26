@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\AuditLogger;
 use App\Models\SecurityIncident;
 use App\Models\RegisteredItem;
 use App\Models\Notification;
@@ -167,6 +168,31 @@ class RegisteredItemController extends Controller
                     null,
             ]);
         }
+
+                        /*
+                |--------------------------------------------------------------------------
+                | Audit Log - Item Registration
+                |--------------------------------------------------------------------------
+                */
+
+                AuditLogger::log(
+                    action: 'register_item',
+                    description: $request->user()->name .
+                        ' submitted item "' .
+                        $item->item_name .
+                        '" for registration.',
+                    eventType: 'create',
+                    module: 'Item Registration',
+                    status: 'success',
+                    metadata: [
+                        'item_id' => $item->id,
+                        'item_name' => $item->item_name,
+                        'item_type' => $item->item_type,
+                        'serial_number' => $item->serial_number,
+                        'registration_status' => $item->status,
+                    ],
+                    user: $request->user()
+                );
 
         return response()->json([
             'message' =>
@@ -378,6 +404,7 @@ class RegisteredItemController extends Controller
     // =========================================================
     // SECURITY - VERIFY ITEM USING QR CODE OR SERIAL NUMBER
     // =========================================================
+
 
     public function verify(Request $request)
     {

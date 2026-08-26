@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Services\AuditLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
@@ -36,7 +37,8 @@ class AuthController extends Controller
             )
         ) {
             return response()->json([
-                'message' => 'Invalid username or password.',
+                'message' =>
+                    'Invalid username or password.',
             ], 401);
         }
 
@@ -44,20 +46,141 @@ class AuthController extends Controller
             ->createToken('qrpass-token')
             ->plainTextToken;
 
-        return response()->json([
-            'message' => 'Login successful.',
 
-            'token' => $token,
+        /*
+        |--------------------------------------------------------------------------
+        | AUDIT LOG - LOGIN
+        |--------------------------------------------------------------------------
+        */
+
+        AuditLogger::log(
+            action:
+                'login',
+
+            description:
+                "{$user->name} logged in successfully.",
+
+            eventType:
+                'authentication',
+
+            module:
+                'Authentication',
+
+            status:
+                'success',
+
+            metadata: [
+                'role' =>
+                    $user->role,
+            ],
+
+            user:
+                $user
+        );
+
+
+        return response()->json([
+            'message' =>
+                'Login successful.',
+
+            'token' =>
+                $token,
 
             'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'username' => $user->username,
-                'role' => $user->role,
-                'status' => $user->status,
+                'id' =>
+                    $user->id,
+
+                'name' =>
+                    $user->name,
+
+                'username' =>
+                    $user->username,
+
+                'role' =>
+                    $user->role,
+
+                'status' =>
+                    $user->status,
             ],
         ]);
     }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | LOGOUT
+    |--------------------------------------------------------------------------
+    */
+
+    public function logout(Request $request)
+    {
+        $user =
+            $request->user();
+
+        if (!$user) {
+            return response()->json([
+                'message' =>
+                    'Unauthenticated.',
+            ], 401);
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | AUDIT LOG - LOGOUT
+        |--------------------------------------------------------------------------
+        |
+        | Important:
+        | Record the logout BEFORE deleting the current access token.
+        |
+        */
+
+        AuditLogger::log(
+            action:
+                'logout',
+
+            description:
+                "{$user->name} logged out successfully.",
+
+            eventType:
+                'authentication',
+
+            module:
+                'Authentication',
+
+            status:
+                'success',
+
+            metadata: [
+                'role' =>
+                    $user->role,
+            ],
+
+            user:
+                $user
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | DELETE CURRENT SANCTUM TOKEN
+        |--------------------------------------------------------------------------
+        */
+
+        $currentToken =
+            $user->currentAccessToken();
+
+        if ($currentToken) {
+            $currentToken->delete();
+        }
+
+
+        return response()->json([
+            'message' =>
+                'Logged out successfully.',
+        ]);
+    }
+
 
     /*
     |--------------------------------------------------------------------------
@@ -90,7 +213,9 @@ class AuthController extends Controller
 
             'email' =>
                 strtolower(
-                    trim($request->email)
+                    trim(
+                        $request->email
+                    )
                 ),
 
             'username' =>
@@ -107,6 +232,7 @@ class AuthController extends Controller
                     $request->password
                 ),
         ]);
+
 
         return response()->json([
             'message' =>
@@ -134,6 +260,7 @@ class AuthController extends Controller
         ], 201);
     }
 
+
     /*
     |--------------------------------------------------------------------------
     | REQUEST PASSWORD RESET CODE
@@ -149,7 +276,9 @@ class AuthController extends Controller
         ]);
 
         $email = strtolower(
-            trim($request->email)
+            trim(
+                $request->email
+            )
         );
 
         $user = User::whereRaw(
@@ -157,9 +286,10 @@ class AuthController extends Controller
             [$email]
         )->first();
 
+
         /*
         |--------------------------------------------------------------------------
-        | Do not reveal whether email exists
+        | DO NOT REVEAL WHETHER EMAIL EXISTS
         |--------------------------------------------------------------------------
         */
 
@@ -170,9 +300,10 @@ class AuthController extends Controller
             ]);
         }
 
+
         /*
         |--------------------------------------------------------------------------
-        | Generate 6-digit verification code
+        | GENERATE 6-DIGIT VERIFICATION CODE
         |--------------------------------------------------------------------------
         */
 
@@ -186,9 +317,10 @@ class AuthController extends Controller
             STR_PAD_LEFT
         );
 
+
         /*
         |--------------------------------------------------------------------------
-        | Cache Key
+        | CACHE KEY
         |--------------------------------------------------------------------------
         */
 
@@ -196,9 +328,10 @@ class AuthController extends Controller
             'qrpass_password_reset_' .
             sha1($email);
 
+
         /*
         |--------------------------------------------------------------------------
-        | Store hashed verification code for 10 minutes
+        | STORE HASHED VERIFICATION CODE FOR 10 MINUTES
         |--------------------------------------------------------------------------
         */
 
@@ -216,19 +349,22 @@ class AuthController extends Controller
             now()->addMinutes(10)
         );
 
+
         /*
         |--------------------------------------------------------------------------
-        | Professional QRPass Password Reset Email
+        | PASSWORD RESET EMAIL
         |--------------------------------------------------------------------------
         */
 
         $safeName = e(
-    ucwords(
-        strtolower(
-            trim($user->name)
-        )
-    )
-);
+            ucwords(
+                strtolower(
+                    trim(
+                        $user->name
+                    )
+                )
+            )
+        );
 
         $html = <<<HTML
 <!DOCTYPE html>
@@ -320,6 +456,7 @@ class AuthController extends Controller
                     </td>
                 </tr>
 
+
                 <!-- UC Color Strip -->
                 <tr>
                     <td>
@@ -361,6 +498,7 @@ class AuthController extends Controller
 
                     </td>
                 </tr>
+
 
                 <!-- Main Content -->
                 <tr>
@@ -404,6 +542,7 @@ class AuthController extends Controller
                             Use the verification code below
                             to continue.
                         </p>
+
 
                         <!-- Verification Code -->
                         <table
@@ -455,6 +594,7 @@ class AuthController extends Controller
 
                         </table>
 
+
                         <!-- Expiration Notice -->
                         <div
                             style="
@@ -480,6 +620,7 @@ class AuthController extends Controller
                             </strong>.
                         </div>
 
+
                         <!-- Security Notice -->
                         <p
                             style="
@@ -498,6 +639,7 @@ class AuthController extends Controller
                     </td>
 
                 </tr>
+
 
                 <!-- Footer -->
                 <tr>
@@ -562,9 +704,10 @@ class AuthController extends Controller
 </html>
 HTML;
 
+
         /*
         |--------------------------------------------------------------------------
-        | Send Password Reset Email
+        | SEND PASSWORD RESET EMAIL
         |--------------------------------------------------------------------------
         */
 
@@ -583,11 +726,13 @@ HTML;
             }
         );
 
+
         return response()->json([
             'message' =>
                 'If the email is registered, a verification code has been sent.',
         ]);
     }
+
 
     /*
     |--------------------------------------------------------------------------
@@ -607,7 +752,9 @@ HTML;
         ]);
 
         $email = strtolower(
-            trim($request->email)
+            trim(
+                $request->email
+            )
         );
 
         $cacheKey =
@@ -619,9 +766,10 @@ HTML;
                 $cacheKey
             );
 
+
         /*
         |--------------------------------------------------------------------------
-        | Code expired or does not exist
+        | CODE EXPIRED OR DOES NOT EXIST
         |--------------------------------------------------------------------------
         */
 
@@ -632,9 +780,10 @@ HTML;
             ], 422);
         }
 
+
         /*
         |--------------------------------------------------------------------------
-        | Check Verification Code
+        | CHECK VERIFICATION CODE
         |--------------------------------------------------------------------------
         */
 
@@ -650,11 +799,13 @@ HTML;
             ], 422);
         }
 
+
         return response()->json([
             'message' =>
                 'Verification code confirmed.',
         ]);
     }
+
 
     /*
     |--------------------------------------------------------------------------
@@ -677,7 +828,9 @@ HTML;
         ]);
 
         $email = strtolower(
-            trim($request->email)
+            trim(
+                $request->email
+            )
         );
 
         $cacheKey =
@@ -689,9 +842,10 @@ HTML;
                 $cacheKey
             );
 
+
         /*
         |--------------------------------------------------------------------------
-        | Code Expired or Missing
+        | CODE EXPIRED OR MISSING
         |--------------------------------------------------------------------------
         */
 
@@ -702,9 +856,10 @@ HTML;
             ], 422);
         }
 
+
         /*
         |--------------------------------------------------------------------------
-        | Verify Code Again
+        | VERIFY CODE AGAIN
         |--------------------------------------------------------------------------
         */
 
@@ -720,9 +875,10 @@ HTML;
             ], 422);
         }
 
+
         /*
         |--------------------------------------------------------------------------
-        | Find User
+        | FIND USER
         |--------------------------------------------------------------------------
         */
 
@@ -734,7 +890,8 @@ HTML;
             !$user ||
             strtolower(
                 $user->email
-            ) !== $email
+            ) !==
+                $email
         ) {
             return response()->json([
                 'message' =>
@@ -742,9 +899,10 @@ HTML;
             ], 422);
         }
 
+
         /*
         |--------------------------------------------------------------------------
-        | Update Password
+        | UPDATE PASSWORD
         |--------------------------------------------------------------------------
         */
 
@@ -755,9 +913,10 @@ HTML;
 
         $user->save();
 
+
         /*
         |--------------------------------------------------------------------------
-        | Revoke Existing Login Tokens
+        | REVOKE EXISTING LOGIN TOKENS
         |--------------------------------------------------------------------------
         */
 
@@ -765,15 +924,17 @@ HTML;
             ->tokens()
             ->delete();
 
+
         /*
         |--------------------------------------------------------------------------
-        | Delete Used Verification Code
+        | DELETE USED VERIFICATION CODE
         |--------------------------------------------------------------------------
         */
 
         Cache::forget(
             $cacheKey
         );
+
 
         return response()->json([
             'message' =>

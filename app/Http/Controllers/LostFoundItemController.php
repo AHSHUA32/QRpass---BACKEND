@@ -2,12 +2,54 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use App\Models\LostFoundItem;
 use App\Models\User;
 use Illuminate\Http\Request;
 
 class LostFoundItemController extends Controller
 {
+    /*
+    |--------------------------------------------------------------------------
+    | AUDIT LOG HELPER
+    |--------------------------------------------------------------------------
+    */
+
+    private function writeAuditLog(
+        Request $request,
+        User $actor,
+        string $eventType,
+        string $action,
+        string $description,
+        string $status = 'success',
+        array $metadata = []
+    ): void {
+        AuditLog::create([
+            'user_id' => $actor->id,
+
+            'actor_name' => $actor->name,
+
+            'actor_username' => $actor->username,
+
+            'event_type' => $eventType,
+
+            'action' => $action,
+
+            'module' => 'Lost & Found',
+
+            'description' => $description,
+
+            'status' => $status,
+
+            'ip_address' => $request->ip(),
+
+            'user_agent' => $request->userAgent(),
+
+            'metadata' => $metadata,
+        ]);
+    }
+
+
     /*
     |--------------------------------------------------------------------------
     | GET LOST & FOUND REGISTRY
@@ -30,6 +72,7 @@ class LostFoundItemController extends Controller
             'items' => $items,
         ]);
     }
+
 
     /*
     |--------------------------------------------------------------------------
@@ -54,6 +97,7 @@ class LostFoundItemController extends Controller
             ], 403);
         }
 
+
         /*
         |--------------------------------------------------------------------------
         | VALIDATION
@@ -65,6 +109,7 @@ class LostFoundItemController extends Controller
                 'required',
                 'in:found,lost',
             ],
+
 
             /*
             |--------------------------------------------------------------------------
@@ -85,6 +130,7 @@ class LostFoundItemController extends Controller
                 'string',
                 'max:255',
             ],
+
 
             /*
             |--------------------------------------------------------------------------
@@ -122,6 +168,7 @@ class LostFoundItemController extends Controller
                 'max:2000',
             ],
 
+
             /*
             |--------------------------------------------------------------------------
             | FOUND DETAILS
@@ -135,12 +182,13 @@ class LostFoundItemController extends Controller
                 'max:255',
             ],
 
-            'date_found' => [
+                    'date_found' => [
                 'nullable',
                 'required_if:report_type,found',
                 'date',
-                'before_or_equal:today',
+                'before_or_equal:' . now('Asia/Manila')->format('Y-m-d H:i:s'),
             ],
+
 
             /*
             |--------------------------------------------------------------------------
@@ -155,13 +203,14 @@ class LostFoundItemController extends Controller
                 'max:255',
             ],
 
-            'date_lost' => [
-                'nullable',
-                'required_if:report_type,lost',
-                'date',
-                'before_or_equal:today',
-            ],
+                'date_lost' => [
+            'nullable',
+            'required_if:report_type,lost',
+            'date',
+            'before_or_equal:' . now('Asia/Manila')->format('Y-m-d H:i:s'),
+        ],
         ]);
+
 
         /*
         |--------------------------------------------------------------------------
@@ -181,6 +230,13 @@ class LostFoundItemController extends Controller
                         'No QRPass user was found with that Student/Employee ID.',
                 ], 422);
             }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | CREATE FOUND ITEM
+            |--------------------------------------------------------------------------
+            */
 
             $item = LostFoundItem::create([
                 'reported_by' =>
@@ -243,6 +299,54 @@ class LostFoundItemController extends Controller
                     null,
             ]);
 
+
+            /*
+            |--------------------------------------------------------------------------
+            | AUDIT LOG - FOUND ITEM CREATED
+            |--------------------------------------------------------------------------
+            */
+
+            $this->writeAuditLog(
+                $request,
+                $user,
+                'data_change',
+                'lost_found_created',
+                'Security Personnel recorded a found item in the Lost & Found registry.',
+                'success',
+                [
+                    'lost_found_id' => $item->id,
+
+                    'report_type' => 'found',
+
+                    'item_name' => $item->item_name,
+
+                    'category' => $item->category,
+
+                    'brand_model' => $item->brand_model,
+
+                    'color' => $item->color,
+
+                    'finder_user_id' => $finder->id,
+
+                    'finder_name' => $finder->name,
+
+                    'finder_username' => $finder->username,
+
+                    'location_found' => $item->location_found,
+
+                    'date_found' => $item->date_found,
+
+                    'status' => $item->status,
+                ]
+            );
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | LOAD RELATIONSHIPS
+            |--------------------------------------------------------------------------
+            */
+
             $item->load([
                 'finder:id,name,username,role',
                 'lostBy:id,name,username,role',
@@ -250,6 +354,7 @@ class LostFoundItemController extends Controller
                 'reporter:id,name,username,role',
                 'claimant:id,name,username,role',
             ]);
+
 
             return response()->json([
                 'message' =>
@@ -260,6 +365,7 @@ class LostFoundItemController extends Controller
                 'item' => $item,
             ], 201);
         }
+
 
         /*
         |--------------------------------------------------------------------------
@@ -278,6 +384,13 @@ class LostFoundItemController extends Controller
                     'No QRPass user was found with that Student/Employee ID.',
             ], 422);
         }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | CREATE LOST ITEM
+        |--------------------------------------------------------------------------
+        */
 
         $item = LostFoundItem::create([
             'reported_by' =>
@@ -340,6 +453,54 @@ class LostFoundItemController extends Controller
                 null,
         ]);
 
+
+        /*
+        |--------------------------------------------------------------------------
+        | AUDIT LOG - LOST ITEM CREATED
+        |--------------------------------------------------------------------------
+        */
+
+        $this->writeAuditLog(
+            $request,
+            $user,
+            'data_change',
+            'lost_found_created',
+            'Security Personnel recorded a lost item in the Lost & Found registry.',
+            'success',
+            [
+                'lost_found_id' => $item->id,
+
+                'report_type' => 'lost',
+
+                'item_name' => $item->item_name,
+
+                'category' => $item->category,
+
+                'brand_model' => $item->brand_model,
+
+                'color' => $item->color,
+
+                'lost_by_user_id' => $lostBy->id,
+
+                'lost_by_name' => $lostBy->name,
+
+                'lost_by_username' => $lostBy->username,
+
+                'location_lost' => $item->location_lost,
+
+                'date_lost' => $item->date_lost,
+
+                'status' => $item->status,
+            ]
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | LOAD RELATIONSHIPS
+        |--------------------------------------------------------------------------
+        */
+
         $item->load([
             'finder:id,name,username,role',
             'lostBy:id,name,username,role',
@@ -347,6 +508,7 @@ class LostFoundItemController extends Controller
             'reporter:id,name,username,role',
             'claimant:id,name,username,role',
         ]);
+
 
         return response()->json([
             'message' =>
@@ -357,6 +519,7 @@ class LostFoundItemController extends Controller
             'item' => $item,
         ], 201);
     }
+
 
     /*
     |--------------------------------------------------------------------------
@@ -383,6 +546,7 @@ class LostFoundItemController extends Controller
 
         $item = LostFoundItem::findOrFail($id);
 
+
         /*
         |--------------------------------------------------------------------------
         | ONLY FOUND REPORTS CAN BE CLAIMED
@@ -399,6 +563,7 @@ class LostFoundItemController extends Controller
             ], 422);
         }
 
+
         /*
         |--------------------------------------------------------------------------
         | ALREADY RECOVERED
@@ -414,6 +579,7 @@ class LostFoundItemController extends Controller
                     'This item has already been returned to its owner.',
             ], 422);
         }
+
 
         /*
         |--------------------------------------------------------------------------
@@ -438,6 +604,7 @@ class LostFoundItemController extends Controller
             ], 422);
         }
 
+
         /*
         |--------------------------------------------------------------------------
         | SAVE CLAIM
@@ -455,6 +622,46 @@ class LostFoundItemController extends Controller
 
         $item->save();
 
+
+        /*
+        |--------------------------------------------------------------------------
+        | AUDIT LOG - STUDENT CLAIM
+        |--------------------------------------------------------------------------
+        */
+
+        $this->writeAuditLog(
+            $request,
+            $user,
+            'data_change',
+            'lost_found_claimed',
+            'Student submitted an ownership claim for a found item.',
+            'success',
+            [
+                'lost_found_id' => $item->id,
+
+                'report_type' => $item->report_type,
+
+                'item_name' => $item->item_name,
+
+                'claimant_user_id' => $user->id,
+
+                'claimant_name' => $user->name,
+
+                'claimant_username' => $user->username,
+
+                'claimed_at' => $item->claimed_at,
+
+                'status' => $item->status,
+            ]
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | LOAD RELATIONSHIPS
+        |--------------------------------------------------------------------------
+        */
+
         $item->load([
             'finder:id,name,username,role',
             'lostBy:id,name,username,role',
@@ -463,6 +670,7 @@ class LostFoundItemController extends Controller
             'claimant:id,name,username,role',
         ]);
 
+
         return response()->json([
             'message' =>
                 'Claim submitted successfully. Please proceed to the Security office for ownership verification.',
@@ -470,6 +678,7 @@ class LostFoundItemController extends Controller
             'item' => $item,
         ]);
     }
+
 
     /*
     |--------------------------------------------------------------------------
@@ -498,6 +707,13 @@ class LostFoundItemController extends Controller
     
         $item = LostFoundItem::findOrFail($id);
     
+    
+        /*
+        |--------------------------------------------------------------------------
+        | ALREADY RECOVERED
+        |--------------------------------------------------------------------------
+        */
+    
         if (
             strtolower((string) $item->status) ===
             'recovered'
@@ -511,11 +727,15 @@ class LostFoundItemController extends Controller
         $reportType =
             strtolower((string) $item->report_type);
     
+    
         /*
         |--------------------------------------------------------------------------
-        | FOUND REPORT
+        | FOUND ITEM REPORT
         |--------------------------------------------------------------------------
-        | A found item must have an approved claimant before release.
+        |
+        | A found item must first be claimed by a student.
+        | Security verifies ownership before releasing the item.
+        |
         */
     
         if ($reportType === 'found') {
@@ -526,8 +746,67 @@ class LostFoundItemController extends Controller
                 ], 422);
             }
     
-            $item->status = 'Recovered';
+            $claimantId =
+                $item->claimed_by;
+    
+            $previousStatus =
+                $item->status;
+    
+            $item->status =
+                'Recovered';
+    
             $item->save();
+    
+    
+            /*
+            |--------------------------------------------------------------------------
+            | AUDIT LOG - FOUND ITEM RECOVERED
+            |--------------------------------------------------------------------------
+            */
+    
+            $this->writeAuditLog(
+                $request,
+                $user,
+                'status_change',
+                'lost_found_recovered',
+                'Security Personnel verified ownership and marked a found item as recovered.',
+                'success',
+                [
+                    'lost_found_id' =>
+                        $item->id,
+    
+                    'report_type' =>
+                        'found',
+    
+                    'item_name' =>
+                        $item->item_name,
+    
+                    'claimant_user_id' =>
+                        $claimantId,
+    
+                    'previous_status' =>
+                        $previousStatus,
+    
+                    'new_status' =>
+                        $item->status,
+    
+                    'verified_by_user_id' =>
+                        $user->id,
+    
+                    'verified_by_name' =>
+                        $user->name,
+    
+                    'verified_by_username' =>
+                        $user->username,
+                ]
+            );
+    
+    
+            /*
+            |--------------------------------------------------------------------------
+            | LOAD RELATIONSHIPS
+            |--------------------------------------------------------------------------
+            */
     
             $item->load([
                 'finder:id,name,username,role',
@@ -537,21 +816,28 @@ class LostFoundItemController extends Controller
                 'claimant:id,name,username,role',
             ]);
     
+    
             return response()->json([
                 'message' =>
                     'Ownership verified. The found item has been returned to its rightful owner.',
-                'item' => $item,
+    
+                'item' =>
+                    $item,
             ]);
         }
     
+    
         /*
         |--------------------------------------------------------------------------
-        | LOST REPORT
+        | LOST ITEM REPORT
         |--------------------------------------------------------------------------
-        | Before marking a lost item recovered, Security must record:
-        | - who found / returned it
-        | - where it was found / turned over
-        | - exact date and time
+        |
+        | When a previously lost item is recovered, Security records:
+        |
+        | - who found / returned the item
+        | - where the item was found
+        | - exact date and time it was found
+        |
         */
     
         $validated = $request->validate([
@@ -570,13 +856,53 @@ class LostFoundItemController extends Controller
             'date_found' => [
                 'required',
                 'date',
-                'before_or_equal:now',
             ],
         ]);
     
+    
+        /*
+        |--------------------------------------------------------------------------
+        | VALIDATE DATE AND TIME
+        |--------------------------------------------------------------------------
+        |
+        | Allow:
+        | - today
+        | - current time
+        | - any past date/time
+        |
+        | Block:
+        | - future date/time
+        |
+        */
+    
+        $dateFound = \Carbon\Carbon::parse(
+            $validated['date_found'],
+            'Asia/Manila'
+        );
+    
+        if (
+            $dateFound->gt(
+                now('Asia/Manila')
+            )
+        ) {
+            return response()->json([
+                'message' =>
+                    'The date found cannot be in the future.',
+            ], 422);
+        }
+    
+    
+        /*
+        |--------------------------------------------------------------------------
+        | FIND PERSON WHO FOUND / RETURNED THE ITEM
+        |--------------------------------------------------------------------------
+        */
+    
         $finder = User::where(
             'username',
-            trim($validated['found_by_identifier'])
+            trim(
+                $validated['found_by_identifier']
+            )
         )->first();
     
         if (!$finder) {
@@ -586,19 +912,94 @@ class LostFoundItemController extends Controller
             ], 422);
         }
     
+    
+        /*
+        |--------------------------------------------------------------------------
+        | SAVE RECOVERY DETAILS
+        |--------------------------------------------------------------------------
+        */
+    
+        $previousStatus =
+            $item->status;
+    
         $item->found_by_user_id =
             $finder->id;
     
         $item->location_found =
-            trim($validated['location_found']);
+            trim(
+                $validated['location_found']
+            );
     
         $item->date_found =
-            $validated['date_found'];
+            $dateFound;
     
         $item->status =
             'Recovered';
     
         $item->save();
+    
+    
+        /*
+        |--------------------------------------------------------------------------
+        | AUDIT LOG - LOST ITEM RECOVERED
+        |--------------------------------------------------------------------------
+        */
+    
+        $this->writeAuditLog(
+            $request,
+            $user,
+            'status_change',
+            'lost_found_recovered',
+            'Security Personnel recorded the recovery of a previously lost item.',
+            'success',
+            [
+                'lost_found_id' =>
+                    $item->id,
+    
+                'report_type' =>
+                    'lost',
+    
+                'item_name' =>
+                    $item->item_name,
+    
+                'finder_user_id' =>
+                    $finder->id,
+    
+                'finder_name' =>
+                    $finder->name,
+    
+                'finder_username' =>
+                    $finder->username,
+    
+                'location_found' =>
+                    $item->location_found,
+    
+                'date_found' =>
+                    $item->date_found,
+    
+                'previous_status' =>
+                    $previousStatus,
+    
+                'new_status' =>
+                    $item->status,
+    
+                'verified_by_user_id' =>
+                    $user->id,
+    
+                'verified_by_name' =>
+                    $user->name,
+    
+                'verified_by_username' =>
+                    $user->username,
+            ]
+        );
+    
+    
+        /*
+        |--------------------------------------------------------------------------
+        | LOAD RELATIONSHIPS
+        |--------------------------------------------------------------------------
+        */
     
         $item->load([
             'finder:id,name,username,role',
@@ -608,13 +1009,15 @@ class LostFoundItemController extends Controller
             'claimant:id,name,username,role',
         ]);
     
+    
         return response()->json([
             'message' =>
                 'Lost item recovered successfully. Turnover credit was assigned to ' .
                 $finder->name .
                 '.',
     
-            'item' => $item,
+            'item' =>
+                $item,
         ]);
     }
 }

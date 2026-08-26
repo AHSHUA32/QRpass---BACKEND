@@ -1,9 +1,9 @@
 <?php
 
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\AccountController;
 use App\Http\Controllers\RegisteredItemController;
 use App\Http\Controllers\ScanLogController;
 use App\Http\Controllers\SecurityIncidentController;
@@ -13,7 +13,10 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\SystemRecordController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\UserController;
-use App\Http\Controllers\AccountController;
+use App\Http\Controllers\SystemSettingController;
+use App\Http\Controllers\AuditLogController;
+use App\Http\Controllers\ActiveSessionController;
+use App\Http\Controllers\RolePermissionController;
 
 
 /*
@@ -24,21 +27,29 @@ use App\Http\Controllers\AccountController;
 
 Route::get('/test', function () {
     return response()->json([
-        'message' => 'QRPass API is working!'
+        'message' =>
+            'QRPass API is working!',
     ]);
 });
 
+
+/*
+|--------------------------------------------------------------------------
+| AUTHENTICATION
+|--------------------------------------------------------------------------
+*/
 
 Route::post(
     '/login',
     [AuthController::class, 'login']
 );
 
-
 Route::post(
     '/register',
     [AuthController::class, 'register']
 );
+
+
 /*
 |--------------------------------------------------------------------------
 | PASSWORD RESET
@@ -47,18 +58,28 @@ Route::post(
 
 Route::post(
     '/forgot-password',
-    [AuthController::class, 'requestPasswordReset']
+    [
+        AuthController::class,
+        'requestPasswordReset',
+    ]
 );
 
 Route::post(
     '/verify-reset-code',
-    [AuthController::class, 'verifyPasswordResetCode']
+    [
+        AuthController::class,
+        'verifyPasswordResetCode',
+    ]
 );
 
 Route::post(
     '/reset-password',
-    [AuthController::class, 'resetPassword']
+    [
+        AuthController::class,
+        'resetPassword',
+    ]
 );
+
 
 /*
 |--------------------------------------------------------------------------
@@ -66,29 +87,57 @@ Route::post(
 |--------------------------------------------------------------------------
 */
 
-Route::middleware('auth:sanctum')->group(function () {
-                // ACCOUNT SETTINGS
-            Route::get('/account', [AccountController::class, 'show']);
+Route::middleware(
+    'auth:sanctum'
+)->group(function () {
 
-            Route::put('/account/profile', [
-                AccountController::class,
-                'updateProfile'
-            ]);
 
-            Route::put('/account/password', [
-                AccountController::class,
-                'updatePassword'
-            ]);
+    /*
+    |--------------------------------------------------------------------------
+    | ACCOUNT SETTINGS
+    |--------------------------------------------------------------------------
+    */
 
-            Route::post('/account/profile-photo', [
-                AccountController::class,
-                'uploadProfilePhoto'
-            ]);
+    Route::get(
+        '/account',
+        [
+            AccountController::class,
+            'show',
+        ]
+    );
 
-            Route::delete('/account/profile-photo', [
-                AccountController::class,
-                'removeProfilePhoto'
-            ]);
+    Route::put(
+        '/account/profile',
+        [
+            AccountController::class,
+            'updateProfile',
+        ]
+    );
+
+    Route::put(
+        '/account/password',
+        [
+            AccountController::class,
+            'updatePassword',
+        ]
+    );
+
+    Route::post(
+        '/account/profile-photo',
+        [
+            AccountController::class,
+            'uploadProfilePhoto',
+        ]
+    );
+
+    Route::delete(
+        '/account/profile-photo',
+        [
+            AccountController::class,
+            'removeProfilePhoto',
+        ]
+    );
+
 
     /*
     |--------------------------------------------------------------------------
@@ -96,20 +145,13 @@ Route::middleware('auth:sanctum')->group(function () {
     |--------------------------------------------------------------------------
     */
 
-    Route::post('/logout', function (Request $request) {
-
-        $token = $request
-            ->user()
-            ->currentAccessToken();
-
-        if ($token) {
-            $token->delete();
-        }
-
-        return response()->json([
-            'message' => 'Logged out successfully.',
-        ]);
-    });
+    Route::post(
+        '/logout',
+        [
+            AuthController::class,
+            'logout',
+        ]
+    );
 
 
     /*
@@ -122,6 +164,7 @@ Route::middleware('auth:sanctum')->group(function () {
         'role:student'
     )->group(function () {
 
+
         /*
         |--------------------------------------------------------------------------
         | Item Registration
@@ -130,12 +173,18 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get(
             '/items',
-            [RegisteredItemController::class, 'index']
+            [
+                RegisteredItemController::class,
+                'index',
+            ]
         );
 
         Route::post(
             '/items',
-            [RegisteredItemController::class, 'store']
+            [
+                RegisteredItemController::class,
+                'store',
+            ]
         );
 
 
@@ -147,7 +196,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::put(
             '/lost-found/{id}/claim',
-            [LostFoundItemController::class, 'claim']
+            [
+                LostFoundItemController::class,
+                'claim',
+            ]
         );
     });
 
@@ -162,6 +214,7 @@ Route::middleware('auth:sanctum')->group(function () {
         'role:pco'
     )->group(function () {
 
+
         /*
         |--------------------------------------------------------------------------
         | Pending Item Registration Requests
@@ -170,19 +223,29 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get(
             '/items/pending',
-            [RegisteredItemController::class, 'pending']
+            [
+                RegisteredItemController::class,
+                'pending',
+            ]
+        )->middleware(
+            'permission:approve_requests'
         );
 
 
         /*
         |--------------------------------------------------------------------------
-        | Approve Item Registration
+        | Approve Item Registration / Issue QR
         |--------------------------------------------------------------------------
         */
 
         Route::put(
             '/items/{id}/approve',
-            [RegisteredItemController::class, 'approve']
+            [
+                RegisteredItemController::class,
+                'approve',
+            ]
+        )->middleware(
+            'permission:approve_requests'
         );
     });
 
@@ -199,7 +262,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get(
             '/items/all',
-            [RegisteredItemController::class, 'allItems']
+            [
+                RegisteredItemController::class,
+                'allItems',
+            ]
         );
     });
 
@@ -214,6 +280,7 @@ Route::middleware('auth:sanctum')->group(function () {
         'role:security'
     )->group(function () {
 
+
         /*
         |--------------------------------------------------------------------------
         | QR Verification
@@ -222,7 +289,12 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::post(
             '/items/verify',
-            [RegisteredItemController::class, 'verify']
+            [
+                RegisteredItemController::class,
+                'verify',
+            ]
+        )->middleware(
+            'permission:scan_verify'
         );
 
 
@@ -234,7 +306,12 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::post(
             '/scan-logs',
-            [ScanLogController::class, 'store']
+            [
+                ScanLogController::class,
+                'store',
+            ]
+        )->middleware(
+            'permission:scan_verify'
         );
 
 
@@ -246,12 +323,18 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::post(
             '/security-incidents',
-            [SecurityIncidentController::class, 'store']
+            [
+                SecurityIncidentController::class,
+                'store',
+            ]
         );
 
         Route::put(
             '/security-incidents/{id}/resolve',
-            [SecurityIncidentController::class, 'resolve']
+            [
+                SecurityIncidentController::class,
+                'resolve',
+            ]
         );
 
 
@@ -259,15 +342,14 @@ Route::middleware('auth:sanctum')->group(function () {
         |--------------------------------------------------------------------------
         | Create Lost & Found Record
         |--------------------------------------------------------------------------
-        |
-        | A person turns a found item over to CSU.
-        | CSU records the item and credits the person who found it.
-        |
         */
 
         Route::post(
             '/lost-found',
-            [LostFoundItemController::class, 'store']
+            [
+                LostFoundItemController::class,
+                'store',
+            ]
         );
 
 
@@ -275,15 +357,35 @@ Route::middleware('auth:sanctum')->group(function () {
         |--------------------------------------------------------------------------
         | Mark Lost & Found Item as Recovered
         |--------------------------------------------------------------------------
-        |
-        | After CSU verifies that the claimant is the rightful owner,
-        | CSU marks the record as Recovered.
-        |
         */
 
         Route::put(
             '/lost-found/{id}/recovered',
-            [LostFoundItemController::class, 'markRecovered']
+            [
+                LostFoundItemController::class,
+                'markRecovered',
+            ]
+        );
+    });
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | SECURITY REPORTS
+    |--------------------------------------------------------------------------
+    */
+
+    Route::middleware([
+        'role:security',
+        'permission:view_reports',
+    ])->group(function () {
+
+        Route::get(
+            '/security-reports',
+            [
+                ReportController::class,
+                'security',
+            ]
         );
     });
 
@@ -298,6 +400,7 @@ Route::middleware('auth:sanctum')->group(function () {
         'role:security,sysadmin'
     )->group(function () {
 
+
         /*
         |--------------------------------------------------------------------------
         | Scan Logs
@@ -306,7 +409,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get(
             '/scan-logs',
-            [ScanLogController::class, 'index']
+            [
+                ScanLogController::class,
+                'index',
+            ]
         );
 
 
@@ -318,7 +424,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get(
             '/security-incidents',
-            [SecurityIncidentController::class, 'index']
+            [
+                SecurityIncidentController::class,
+                'index',
+            ]
         );
     });
 
@@ -330,13 +439,13 @@ Route::middleware('auth:sanctum')->group(function () {
     |
     | Student:
     |   - Browse records
-    |   - Claim / inquire
+    |   - Claim found items
     |
     | Security:
     |   - Browse records
     |   - Create records
     |   - Process claims
-    |   - Mark items as Recovered
+    |   - Mark records recovered
     |
     | Students do NOT create Lost & Found reports.
     |
@@ -348,7 +457,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get(
             '/lost-found',
-            [LostFoundItemController::class, 'index']
+            [
+                LostFoundItemController::class,
+                'index',
+            ]
         );
     });
 
@@ -365,17 +477,26 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get(
             '/notifications',
-            [NotificationController::class, 'index']
+            [
+                NotificationController::class,
+                'index',
+            ]
         );
 
         Route::put(
             '/notifications/read-all',
-            [NotificationController::class, 'markAllRead']
+            [
+                NotificationController::class,
+                'markAllRead',
+            ]
         );
 
         Route::put(
             '/notifications/{id}/read',
-            [NotificationController::class, 'markRead']
+            [
+                NotificationController::class,
+                'markRead',
+            ]
         );
     });
 
@@ -390,6 +511,7 @@ Route::middleware('auth:sanctum')->group(function () {
         'role:sysadmin'
     )->group(function () {
 
+
         /*
         |--------------------------------------------------------------------------
         | Overview Dashboard
@@ -398,7 +520,33 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get(
             '/dashboard',
-            [DashboardController::class, 'index']
+            [
+                DashboardController::class,
+                'index',
+            ]
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | System Settings
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get(
+            '/system-settings',
+            [
+                SystemSettingController::class,
+                'show',
+            ]
+        );
+
+        Route::put(
+            '/system-settings',
+            [
+                SystemSettingController::class,
+                'update',
+            ]
         );
 
 
@@ -410,7 +558,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get(
             '/system-records',
-            [SystemRecordController::class, 'index']
+            [
+                SystemRecordController::class,
+                'index',
+            ]
         );
 
 
@@ -422,7 +573,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get(
             '/reports',
-            [ReportController::class, 'index']
+            [
+                ReportController::class,
+                'index',
+            ]
         );
 
 
@@ -434,22 +588,95 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get(
             '/users',
-            [UserController::class, 'index']
+            [
+                UserController::class,
+                'index',
+            ]
         );
 
         Route::post(
             '/users',
-            [UserController::class, 'store']
+            [
+                UserController::class,
+                'store',
+            ]
         );
 
         Route::put(
             '/users/{id}',
-            [UserController::class, 'update']
+            [
+                UserController::class,
+                'update',
+            ]
         );
 
         Route::put(
             '/users/{id}/status',
-            [UserController::class, 'updateStatus']
+            [
+                UserController::class,
+                'updateStatus',
+            ]
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Audit Logs
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get(
+            '/audit-logs',
+            [
+                AuditLogController::class,
+                'index',
+            ]
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Active Sessions
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get(
+            '/active-sessions',
+            [
+                ActiveSessionController::class,
+                'index',
+            ]
+        );
+
+        Route::delete(
+            '/active-sessions/{id}',
+            [
+                ActiveSessionController::class,
+                'destroy',
+            ]
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | SECURITY CONFIGURATION / RBAC
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get(
+            '/role-permissions',
+            [
+                RolePermissionController::class,
+                'index',
+            ]
+        );
+
+        Route::put(
+            '/role-permissions/{role}',
+            [
+                RolePermissionController::class,
+                'update',
+            ]
         );
     });
 });

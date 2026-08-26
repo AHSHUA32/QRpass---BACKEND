@@ -10,6 +10,12 @@ use Illuminate\Support\Facades\DB;
 
 class ReportController extends Controller
 {
+    /*
+    |--------------------------------------------------------------------------
+    | SYSTEM ADMIN REPORTS
+    |--------------------------------------------------------------------------
+    */
+
     public function index()
     {
         /*
@@ -18,61 +24,77 @@ class ReportController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        $totalRegisteredItems = RegisteredItem::count();
+        $totalRegisteredItems =
+            RegisteredItem::count();
 
-        $activeQrCodes = RegisteredItem::where('status', 'approved')
-            ->whereNotNull('qr_code')
-            ->count();
+        $activeQrCodes =
+            RegisteredItem::where(
+                'status',
+                'approved'
+            )
+                ->whereNotNull(
+                    'qr_code'
+                )
+                ->count();
 
-        $pendingItems = RegisteredItem::where(
-            'status',
-            'pending'
-        )->count();
+        $pendingItems =
+            RegisteredItem::where(
+                'status',
+                'pending'
+            )->count();
 
-        $scansToday = ScanLog::whereDate(
-            'scanned_at',
-            today()
-        )->count();
-
-        $scansThisMonth = ScanLog::whereYear(
-            'scanned_at',
-            now()->year
-        )
-            ->whereMonth(
+        $scansToday =
+            ScanLog::whereDate(
                 'scanned_at',
-                now()->month
-            )
-            ->count();
+                today()
+            )->count();
 
-        $registrationsThisMonth = RegisteredItem::whereYear(
-            'created_at',
-            now()->year
-        )
-            ->whereMonth(
+        $scansThisMonth =
+            ScanLog::whereYear(
+                'scanned_at',
+                now()->year
+            )
+                ->whereMonth(
+                    'scanned_at',
+                    now()->month
+                )
+                ->count();
+
+        $registrationsThisMonth =
+            RegisteredItem::whereYear(
                 'created_at',
-                now()->month
+                now()->year
             )
-            ->count();
+                ->whereMonth(
+                    'created_at',
+                    now()->month
+                )
+                ->count();
 
-        $flaggedIncidents = SecurityIncident::where(
-            'status',
-            'Flagged'
-        )->count();
+        $flaggedIncidents =
+            SecurityIncident::where(
+                'status',
+                'Flagged'
+            )->count();
 
-        $resolvedIncidents = SecurityIncident::where(
-            'status',
-            'Resolved'
-        )->count();
+        $resolvedIncidents =
+            SecurityIncident::where(
+                'status',
+                'Resolved'
+            )->count();
 
-        $lostFoundAvailable = LostFoundItem::where(
-            'status',
-            'Found'
-        )->count();
+        $lostFoundAvailable =
+            LostFoundItem::where(
+                'status',
+                'Found'
+            )->count();
 
-        $lostFoundClaimed = LostFoundItem::where(
-            'status',
-            'Claimed'
-        )->count();
+        $lostFoundClaimed =
+            LostFoundItem::where(
+                'status',
+                'Claimed'
+            )->count();
+
 
         /*
         |--------------------------------------------------------------------------
@@ -80,13 +102,21 @@ class ReportController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        $itemTypes = RegisteredItem::select(
-            'item_type',
-            DB::raw('COUNT(*) as total')
-        )
-            ->groupBy('item_type')
-            ->orderByDesc('total')
-            ->get();
+        $itemTypes =
+            RegisteredItem::select(
+                'item_type',
+                DB::raw(
+                    'COUNT(*) as total'
+                )
+            )
+                ->groupBy(
+                    'item_type'
+                )
+                ->orderByDesc(
+                    'total'
+                )
+                ->get();
+
 
         /*
         |--------------------------------------------------------------------------
@@ -94,20 +124,32 @@ class ReportController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        $dailyScans = ScanLog::select(
-            DB::raw('DATE(scanned_at) as date'),
-            DB::raw('COUNT(*) as total')
-        )
-            ->whereDate(
-                'scanned_at',
-                '>=',
-                now()->subDays(6)->toDateString()
+        $dailyScans =
+            ScanLog::select(
+                DB::raw(
+                    'DATE(scanned_at) as date'
+                ),
+                DB::raw(
+                    'COUNT(*) as total'
+                )
             )
-            ->groupBy(
-                DB::raw('DATE(scanned_at)')
-            )
-            ->orderBy('date')
-            ->get();
+                ->whereDate(
+                    'scanned_at',
+                    '>=',
+                    now()
+                        ->subDays(6)
+                        ->toDateString()
+                )
+                ->groupBy(
+                    DB::raw(
+                        'DATE(scanned_at)'
+                    )
+                )
+                ->orderBy(
+                    'date'
+                )
+                ->get();
+
 
         /*
         |--------------------------------------------------------------------------
@@ -115,19 +157,29 @@ class ReportController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        $monthlyRegistrations = RegisteredItem::select(
-            DB::raw('MONTH(created_at) as month'),
-            DB::raw('COUNT(*) as total')
-        )
-            ->whereYear(
-                'created_at',
-                now()->year
+        $monthlyRegistrations =
+            RegisteredItem::select(
+                DB::raw(
+                    'MONTH(created_at) as month'
+                ),
+                DB::raw(
+                    'COUNT(*) as total'
+                )
             )
-            ->groupBy(
-                DB::raw('MONTH(created_at)')
-            )
-            ->orderBy('month')
-            ->get();
+                ->whereYear(
+                    'created_at',
+                    now()->year
+                )
+                ->groupBy(
+                    DB::raw(
+                        'MONTH(created_at)'
+                    )
+                )
+                ->orderBy(
+                    'month'
+                )
+                ->get();
+
 
         /*
         |--------------------------------------------------------------------------
@@ -135,13 +187,17 @@ class ReportController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        $recentScans = ScanLog::with([
-            'item.user',
-            'scanner',
-        ])
-            ->latest('scanned_at')
-            ->limit(20)
-            ->get();
+        $recentScans =
+            ScanLog::with([
+                'item.user',
+                'scanner',
+            ])
+                ->latest(
+                    'scanned_at'
+                )
+                ->limit(20)
+                ->get();
+
 
         /*
         |--------------------------------------------------------------------------
@@ -149,13 +205,17 @@ class ReportController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        $recentIncidents = SecurityIncident::with([
-            'reporter',
-            'item.user',
-        ])
-            ->latest('reported_at')
-            ->limit(20)
-            ->get();
+        $recentIncidents =
+            SecurityIncident::with([
+                'reporter',
+                'item.user',
+            ])
+                ->latest(
+                    'reported_at'
+                )
+                ->limit(20)
+                ->get();
+
 
         /*
         |--------------------------------------------------------------------------
@@ -163,12 +223,14 @@ class ReportController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        $recentRegistrations = RegisteredItem::with(
-            'user'
-        )
-            ->latest()
-            ->limit(20)
-            ->get();
+        $recentRegistrations =
+            RegisteredItem::with(
+                'user'
+            )
+                ->latest()
+                ->limit(20)
+                ->get();
+
 
         return response()->json([
             'summary' => [
@@ -220,6 +282,49 @@ class ReportController extends Controller
 
             'recent_registrations' =>
                 $recentRegistrations,
+        ]);
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | CSU / SECURITY REPORT DATA
+    |--------------------------------------------------------------------------
+    |
+    | Dedicated endpoint for the Security Reports page.
+    | This keeps report access separate from the normal operational
+    | scan-log and security-incident endpoints.
+    |
+    */
+
+    public function security()
+    {
+        $logs =
+            ScanLog::with([
+                'item.user',
+                'scanner',
+            ])
+                ->latest(
+                    'scanned_at'
+                )
+                ->get();
+
+        $incidents =
+            SecurityIncident::with([
+                'reporter',
+                'item.user',
+            ])
+                ->latest(
+                    'reported_at'
+                )
+                ->get();
+
+        return response()->json([
+            'logs' =>
+                $logs,
+
+            'incidents' =>
+                $incidents,
         ]);
     }
 }

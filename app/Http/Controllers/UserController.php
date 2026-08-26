@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Services\AuditLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
@@ -20,40 +21,6 @@ class UserController extends Controller
         $users = User::orderByDesc('created_at')->get();
 
         return response()->json([
-            'summary' => [
-                'total_users' => User::count(),
-
-                'active_users' => User::where(
-                    'status',
-                    'approved'
-                )->count(),
-
-                'inactive_users' => User::where(
-                    'status',
-                    'inactive'
-                )->count(),
-
-                'students' => User::where(
-                    'role',
-                    'student'
-                )->count(),
-
-                'security' => User::where(
-                    'role',
-                    'security'
-                )->count(),
-
-                'pco' => User::where(
-                    'role',
-                    'pco'
-                )->count(),
-
-                'system_admins' => User::where(
-                    'role',
-                    'sysadmin'
-                )->count(),
-            ],
-
             'users' => $users,
         ]);
     }
@@ -100,27 +67,92 @@ class UserController extends Controller
             ],
         ]);
 
+
+        /*
+        |--------------------------------------------------------------------------
+        | Create User
+        |--------------------------------------------------------------------------
+        */
+
         $user = User::create([
-            'name' => $validated['name'],
+            'name' =>
+                $validated['name'],
 
-            'email' => $validated['email'],
+            'email' =>
+                $validated['email'],
 
-            'username' => $validated['username'],
+            'username' =>
+                $validated['username'],
 
-            'role' => $validated['role'],
+            'role' =>
+                $validated['role'],
 
-            'status' => 'approved',
+            'status' =>
+                'approved',
 
-            'password' => Hash::make(
-                $validated['password']
-            ),
+            'password' =>
+                Hash::make(
+                    $validated['password']
+                ),
         ]);
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Audit Log - User Created
+        |--------------------------------------------------------------------------
+        */
+
+        AuditLogger::log(
+            action:
+                'create_user',
+
+            description:
+                $request->user()->name .
+                ' created user account "' .
+                $user->name .
+                '".',
+
+            eventType:
+                'create',
+
+            module:
+                'User Management',
+
+            status:
+                'success',
+
+            metadata: [
+                'created_user_id' =>
+                    $user->id,
+
+                'name' =>
+                    $user->name,
+
+                'username' =>
+                    $user->username,
+
+                'email' =>
+                    $user->email,
+
+                'role' =>
+                    $user->role,
+
+                'account_status' =>
+                    $user->status,
+            ],
+
+            user:
+                $request->user()
+        );
+
 
         return response()->json([
             'message' =>
                 'User account created successfully.',
 
-            'user' => $user,
+            'user' =>
+                $user,
         ], 201);
     }
 
@@ -135,62 +167,106 @@ class UserController extends Controller
         Request $request,
         $id
     ) {
-        $user = User::findOrFail($id);
+        $user =
+            User::findOrFail($id);
 
-        $validated = $request->validate([
-            'name' => [
-                'required',
-                'string',
-                'max:255',
-            ],
-
-            'email' => [
-                'required',
-                'email',
-                'max:255',
-
-                Rule::unique(
-                    'users',
-                    'email'
-                )->ignore($user->id),
-            ],
-
-            'username' => [
-                'required',
-                'string',
-                'max:255',
-
-                Rule::unique(
-                    'users',
-                    'username'
-                )->ignore($user->id),
-            ],
-
-            'role' => [
-                'required',
-                'in:student,security,pco,sysadmin',
-            ],
-        ]);
 
         /*
         |--------------------------------------------------------------------------
-        | Protect the currently logged-in System Administrator
+        | Validation
+        |--------------------------------------------------------------------------
+        */
+
+        $validated =
+            $request->validate([
+                'name' => [
+                    'required',
+                    'string',
+                    'max:255',
+                ],
+
+                'email' => [
+                    'required',
+                    'email',
+                    'max:255',
+
+                    Rule::unique(
+                        'users',
+                        'email'
+                    )->ignore(
+                        $user->id
+                    ),
+                ],
+
+                'username' => [
+                    'required',
+                    'string',
+                    'max:255',
+
+                    Rule::unique(
+                        'users',
+                        'username'
+                    )->ignore(
+                        $user->id
+                    ),
+                ],
+
+                'role' => [
+                    'required',
+                    'in:student,security,pco,sysadmin',
+                ],
+            ]);
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Protect Logged-in System Administrator
         |--------------------------------------------------------------------------
         |
-        | The admin should not accidentally change their own role while
-        | currently logged in.
+        | The currently logged-in administrator cannot accidentally
+        | remove their own System Administrator role.
         |
         */
 
         if (
-            $request->user()->id === $user->id &&
-            $validated['role'] !== 'sysadmin'
+            $request->user()->id ===
+                $user->id &&
+            $validated['role'] !==
+                'sysadmin'
         ) {
             return response()->json([
                 'message' =>
                     'You cannot remove the System Administrator role from your own account while you are logged in.',
             ], 422);
         }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Store Previous Values
+        |--------------------------------------------------------------------------
+        */
+
+        $oldValues = [
+            'name' =>
+                $user->name,
+
+            'email' =>
+                $user->email,
+
+            'username' =>
+                $user->username,
+
+            'role' =>
+                $user->role,
+        ];
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Update User
+        |--------------------------------------------------------------------------
+        */
 
         $user->name =
             $validated['name'];
@@ -206,11 +282,65 @@ class UserController extends Controller
 
         $user->save();
 
+
+        /*
+        |--------------------------------------------------------------------------
+        | Audit Log - User Updated
+        |--------------------------------------------------------------------------
+        */
+
+        AuditLogger::log(
+            action:
+                'update_user',
+
+            description:
+                $request->user()->name .
+                ' updated user account "' .
+                $user->name .
+                '".',
+
+            eventType:
+                'update',
+
+            module:
+                'User Management',
+
+            status:
+                'success',
+
+            metadata: [
+                'updated_user_id' =>
+                    $user->id,
+
+                'before' =>
+                    $oldValues,
+
+                'after' => [
+                    'name' =>
+                        $user->name,
+
+                    'email' =>
+                        $user->email,
+
+                    'username' =>
+                        $user->username,
+
+                    'role' =>
+                        $user->role,
+                ],
+            ],
+
+            user:
+                $request->user()
+        );
+
+
         return response()->json([
             'message' =>
                 'User account updated successfully.',
 
-            'user' => $user,
+            'user' =>
+                $user,
         ]);
     }
 
@@ -230,17 +360,21 @@ class UserController extends Controller
                 'required|in:approved,inactive',
         ]);
 
-        $user = User::findOrFail($id);
+        $user =
+            User::findOrFail($id);
+
 
         /*
         |--------------------------------------------------------------------------
-        | Prevent the logged-in administrator from disabling themselves
+        | Prevent Administrator From Disabling Own Account
         |--------------------------------------------------------------------------
         */
 
         if (
-            $request->user()->id === $user->id &&
-            $request->status === 'inactive'
+            $request->user()->id ===
+                $user->id &&
+            $request->status ===
+                'inactive'
         ) {
             return response()->json([
                 'message' =>
@@ -248,18 +382,96 @@ class UserController extends Controller
             ], 422);
         }
 
+
+        /*
+        |--------------------------------------------------------------------------
+        | Store Previous Status
+        |--------------------------------------------------------------------------
+        */
+
+        $previousStatus =
+            $user->status;
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Update Status
+        |--------------------------------------------------------------------------
+        */
+
         $user->status =
             $request->status;
 
         $user->save();
 
+
+        /*
+        |--------------------------------------------------------------------------
+        | Audit Log - User Status Changed
+        |--------------------------------------------------------------------------
+        */
+
+        AuditLogger::log(
+            action:
+                $user->status ===
+                'approved'
+                    ? 'activate_user'
+                    : 'deactivate_user',
+
+            description:
+                $request->user()->name .
+                (
+                    $user->status ===
+                    'approved'
+                        ? ' activated user account "'
+                        : ' deactivated user account "'
+                ) .
+                $user->name .
+                '".',
+
+            eventType:
+                'status_change',
+
+            module:
+                'User Management',
+
+            status:
+                'success',
+
+            metadata: [
+                'target_user_id' =>
+                    $user->id,
+
+                'name' =>
+                    $user->name,
+
+                'username' =>
+                    $user->username,
+
+                'role' =>
+                    $user->role,
+
+                'previous_status' =>
+                    $previousStatus,
+
+                'new_status' =>
+                    $user->status,
+            ],
+
+            user:
+                $request->user()
+        );
+
+
         return response()->json([
             'message' =>
-                $user->status === 'approved'
+                $user->status ===
+                'approved'
                     ? 'User account activated successfully.'
                     : 'User account deactivated successfully.',
 
-            'user' => $user,
+            'user' =>
+                $user,
         ]);
     }
 }
