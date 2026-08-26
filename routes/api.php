@@ -18,6 +18,7 @@ use App\Http\Controllers\SystemSettingController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\ActiveSessionController;
 use App\Http\Controllers\RolePermissionController;
+use App\Http\Controllers\AnnouncementController;
 
 
 /*
@@ -44,7 +45,10 @@ Route::post(
     '/login',
     [AuthController::class, 'login']
 );
-
+Route::post(
+    '/verify-2fa',
+    [AuthController::class, 'verifyTwoFactor']
+);
 Route::post(
     '/register',
     [AuthController::class, 'register']
@@ -165,6 +169,25 @@ Route::post(
         [
             AuthController::class,
             'logout',
+        ]
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | ACTIVE ANNOUNCEMENTS - ALL AUTHENTICATED USERS
+    |--------------------------------------------------------------------------
+    |
+    | Returns only published and currently active announcements intended
+    | for the logged-in user's role or for everyone.
+    |
+    */
+
+    Route::get(
+        '/announcements',
+        [
+            AnnouncementController::class,
+            'index',
         ]
     );
 
@@ -547,6 +570,53 @@ Route::post(
             [
                 DashboardController::class,
                 'index',
+            ]
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Announcement Management
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get(
+            '/announcements/manage',
+            [
+                AnnouncementController::class,
+                'adminIndex',
+            ]
+        );
+
+        Route::post(
+            '/announcements',
+            [
+                AnnouncementController::class,
+                'store',
+            ]
+        );
+
+        Route::put(
+            '/announcements/{id}',
+            [
+                AnnouncementController::class,
+                'update',
+            ]
+        );
+
+        Route::put(
+            '/announcements/{id}/publish',
+            [
+                AnnouncementController::class,
+                'setPublished',
+            ]
+        );
+
+        Route::delete(
+            '/announcements/{id}',
+            [
+                AnnouncementController::class,
+                'destroy',
             ]
         );
 
