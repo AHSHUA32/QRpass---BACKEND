@@ -19,8 +19,9 @@ return new class extends Migration
                 ->constrained('users')
                 ->cascadeOnDelete();
 
-            $table->timestamp('viewed_at')
-                ->useCurrent();
+            $table->timestamp('viewed_at')->nullable();
+
+            $table->timestamps();
 
             $table->unique([
                 'announcement_id',

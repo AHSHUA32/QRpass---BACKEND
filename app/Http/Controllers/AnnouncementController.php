@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Announcement;
+use App\Models\Notification;
+use App\Models\User;
 use App\Services\AuditLogger;
 use Illuminate\Http\Request;
 
@@ -12,20 +14,18 @@ class AnnouncementController extends Controller
     |--------------------------------------------------------------------------
     | ACTIVE ANNOUNCEMENTS FOR LOGGED-IN USER
     |--------------------------------------------------------------------------
-    |
-    | Used by Student, CSU, PCO and SysAdmin dashboards.
-    |
-    | Only returns announcements that:
-    | - are published
-    | - are intended for the user's role or everyone
-    | - have already started
-    | - have not expired
-    |
     */
 
     public function index(Request $request)
     {
         $user = $request->user();
+
+        // System Administrators manage announcements but are not recipients.
+        if ($user && $user->role === 'sysadmin') {
+            return response()->json([
+                'announcements' => [],
+            ]);
+        }
 
         $announcements =
             Announcement::query()
@@ -87,7 +87,36 @@ class AnnouncementController extends Controller
                 ->latest(
                     'created_at'
                 )
-                ->get();
+                ->get()
+                ->filter(
+                    function ($announcement) use ($user) {
+                        $alreadyViewed =
+                            Notification::where(
+                                'user_id',
+                                $user->id
+                            )
+                                ->where(
+                                    'type',
+                                    'announcement'
+                                )
+                                ->where(
+                                    'title',
+                                    $announcement->title
+                                )
+                                ->where(
+                                    'message',
+                                    $announcement->message
+                                )
+                                ->where(
+                                    'is_read',
+                                    true
+                                )
+                                ->exists();
+
+                        return !$alreadyViewed;
+                    }
+                )
+                ->values();
 
         return response()->json([
             'announcements' =>
@@ -160,7 +189,7 @@ class AnnouncementController extends Controller
 
                 'audience' => [
                     'required',
-                    'in:everyone,student,security,pco,sysadmin',
+                    'in:everyone,student,security,pco',
                 ],
 
                 'priority' => [
@@ -208,13 +237,25 @@ class AnnouncementController extends Controller
                     ?? null,
 
                 'is_published' =>
-                    $validated[
-                        'is_published'
-                    ],
+                    $validated['is_published'],
 
                 'created_by' =>
                     $request->user()->id,
             ]);
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | CREATE NOTIFICATIONS WHEN PUBLISHED IMMEDIATELY
+        |--------------------------------------------------------------------------
+        */
+
+        if ($announcement->is_published) {
+            $this->createAnnouncementNotifications(
+                $announcement
+            );
+        }
+
 
         /*
         |--------------------------------------------------------------------------
@@ -252,26 +293,23 @@ class AnnouncementController extends Controller
                     $announcement->priority,
 
                 'is_published' =>
-                    $announcement
-                        ->is_published,
+                    $announcement->is_published,
 
                 'start_at' =>
-                    $announcement
-                        ->start_at,
+                    $announcement->start_at,
 
                 'end_at' =>
-                    $announcement
-                        ->end_at,
+                    $announcement->end_at,
             ],
 
             user:
                 $request->user()
         );
 
+
         $announcement->load(
             'creator:id,name,username'
         );
-
         return response()->json([
             'message' =>
                 'Announcement created successfully.',
@@ -297,6 +335,9 @@ class AnnouncementController extends Controller
                 $id
             );
 
+        $wasPublished =
+            (bool) $announcement->is_published;
+
         $validated =
             $request->validate([
                 'title' => [
@@ -313,7 +354,7 @@ class AnnouncementController extends Controller
 
                 'audience' => [
                     'required',
-                    'in:everyone,student,security,pco,sysadmin',
+                    'in:everyone,student,security,pco',
                 ],
 
                 'priority' => [
@@ -338,6 +379,7 @@ class AnnouncementController extends Controller
                 ],
             ]);
 
+
         $announcement->update([
             'title' =>
                 $validated['title'],
@@ -360,10 +402,25 @@ class AnnouncementController extends Controller
                 ?? null,
 
             'is_published' =>
-                $validated[
-                    'is_published'
-                ],
+                $validated['is_published'],
         ]);
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | NOTIFY USERS WHEN DRAFT BECOMES PUBLISHED
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            !$wasPublished &&
+            $announcement->is_published
+        ) {
+            $this->createAnnouncementNotifications(
+                $announcement
+            );
+        }
+
 
         /*
         |--------------------------------------------------------------------------
@@ -401,13 +458,13 @@ class AnnouncementController extends Controller
                     $announcement->priority,
 
                 'is_published' =>
-                    $announcement
-                        ->is_published,
+                    $announcement->is_published,
             ],
 
             user:
                 $request->user()
         );
+
 
         $announcement->load(
             'creator:id,name,username'
@@ -446,19 +503,36 @@ class AnnouncementController extends Controller
                 $id
             );
 
-        $announcement
-            ->is_published =
-            $validated[
-                'is_published'
-            ];
+        $wasPublished =
+            (bool) $announcement->is_published;
+
+        $announcement->is_published =
+            $validated['is_published'];
 
         $announcement->save();
 
+
+        /*
+        |--------------------------------------------------------------------------
+        | CREATE NOTIFICATIONS WHEN PUBLISHED
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            !$wasPublished &&
+            $announcement->is_published
+        ) {
+            $this->createAnnouncementNotifications(
+                $announcement
+            );
+        }
+
+
         $action =
-            $announcement
-                ->is_published
+            $announcement->is_published
                 ? 'published'
                 : 'unpublished';
+
 
         /*
         |--------------------------------------------------------------------------
@@ -468,8 +542,7 @@ class AnnouncementController extends Controller
 
         AuditLogger::log(
             action:
-                $announcement
-                    ->is_published
+                $announcement->is_published
                     ? 'publish_announcement'
                     : 'unpublish_announcement',
 
@@ -495,23 +568,172 @@ class AnnouncementController extends Controller
                     $announcement->id,
 
                 'is_published' =>
-                    $announcement
-                        ->is_published,
+                    $announcement->is_published,
             ],
 
             user:
                 $request->user()
         );
 
+
         return response()->json([
             'message' =>
-                $announcement
-                    ->is_published
+                $announcement->is_published
                     ? 'Announcement published successfully.'
                     : 'Announcement unpublished successfully.',
 
             'announcement' =>
                 $announcement,
+        ]);
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | CREATE ANNOUNCEMENT NOTIFICATIONS
+    |--------------------------------------------------------------------------
+    */
+
+    private function createAnnouncementNotifications(
+        Announcement $announcement
+    ) {
+        $usersQuery =
+            User::query()
+                ->where(
+                    'status',
+                    'approved'
+                );
+
+        if (
+            $announcement->audience ===
+            'everyone'
+        ) {
+            // "Everyone" means all operational users,
+            // excluding the System Administrator.
+            $usersQuery->whereIn(
+                'role',
+                [
+                    'student',
+                    'security',
+                    'pco',
+                ]
+            );
+        } else {
+            $usersQuery->where(
+                'role',
+                $announcement->audience
+            );
+        }
+
+        $users =
+            $usersQuery->get();
+
+        foreach ($users as $user) {
+            Notification::create([
+                'user_id' =>
+                    $user->id,
+
+                'type' =>
+                    'announcement',
+
+                'title' =>
+                    $announcement->title,
+
+                'message' =>
+                    $announcement->message,
+
+                'is_read' =>
+                    false,
+
+                'read_at' =>
+                    null,
+            ]);
+        }
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | MARK ANNOUNCEMENT AS VIEWED
+    |--------------------------------------------------------------------------
+    */
+
+    public function markViewed(
+        Request $request,
+        $id
+    ) {
+        $user =
+            $request->user();
+
+        if (!$user) {
+            return response()->json([
+                'message' =>
+                    'Unauthenticated.',
+            ], 401);
+        }
+
+        if ($user->role === 'sysadmin') {
+            return response()->json([
+                'message' =>
+                    'System Administrators are not announcement recipients.',
+            ], 403);
+        }
+
+        $announcement =
+            Announcement::findOrFail(
+                $id
+            );
+
+        $updated =
+            Notification::where(
+                'user_id',
+                $user->id
+            )
+                ->where(
+                    'type',
+                    'announcement'
+                )
+                ->where(
+                    'title',
+                    $announcement->title
+                )
+                ->where(
+                    'message',
+                    $announcement->message
+                )
+                ->update([
+                    'is_read' =>
+                        true,
+
+                    'read_at' =>
+                        now(),
+                ]);
+
+        if ($updated === 0) {
+            Notification::create([
+                'user_id' =>
+                    $user->id,
+
+                'type' =>
+                    'announcement',
+
+                'title' =>
+                    $announcement->title,
+
+                'message' =>
+                    $announcement->message,
+
+                'is_read' =>
+                    true,
+
+                'read_at' =>
+                    now(),
+            ]);
+        }
+
+        return response()->json([
+            'message' =>
+                'Announcement marked as viewed.',
         ]);
     }
 
@@ -538,6 +760,7 @@ class AnnouncementController extends Controller
             $announcement->title;
 
         $announcement->delete();
+
 
         /*
         |--------------------------------------------------------------------------
@@ -576,6 +799,7 @@ class AnnouncementController extends Controller
                 $request->user()
         );
 
+
         return response()->json([
             'message' =>
                 'Announcement deleted successfully.',
@@ -593,8 +817,7 @@ class AnnouncementController extends Controller
         Announcement $announcement
     ): string {
         if (
-            !$announcement
-                ->is_published
+            !$announcement->is_published
         ) {
             return 'draft';
         }

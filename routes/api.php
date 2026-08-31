@@ -20,7 +20,6 @@ use App\Http\Controllers\ActiveSessionController;
 use App\Http\Controllers\RolePermissionController;
 use App\Http\Controllers\AnnouncementController;
 
-
 /*
 |--------------------------------------------------------------------------
 | PUBLIC ROUTES
@@ -92,10 +91,10 @@ Route::post(
 |--------------------------------------------------------------------------
 */
 
-    Route::middleware([
-        'session.timeout',
-        'auth:sanctum',
-    ])->group(function () {
+Route::middleware([
+    'session.timeout',
+    'auth:sanctum',
+])->group(function () {
 
 
     /*
@@ -191,6 +190,13 @@ Route::post(
         ]
     );
 
+    Route::put(
+        '/announcements/{id}/view',
+        [
+            AnnouncementController::class,
+            'markViewed',
+        ]
+    );
 
     /*
     |--------------------------------------------------------------------------
@@ -611,7 +617,6 @@ Route::post(
                 'setPublished',
             ]
         );
-
         Route::delete(
             '/announcements/{id}',
             [

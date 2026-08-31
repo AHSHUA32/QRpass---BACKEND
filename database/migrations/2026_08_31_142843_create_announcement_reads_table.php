@@ -8,29 +8,30 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('announcement_views', function (Blueprint $table) {
+        Schema::create('announcement_reads', function (Blueprint $table) {
             $table->id();
-
-            $table->foreignId('announcement_id')
-                ->constrained('announcements')
-                ->cascadeOnDelete();
 
             $table->foreignId('user_id')
                 ->constrained('users')
                 ->cascadeOnDelete();
 
-            $table->timestamp('viewed_at')
-                ->useCurrent();
+            $table->foreignId('announcement_id')
+                ->constrained('announcements')
+                ->cascadeOnDelete();
+
+            $table->timestamp('viewed_at')->useCurrent();
+
+            $table->timestamps();
 
             $table->unique([
-                'announcement_id',
                 'user_id',
+                'announcement_id',
             ]);
         });
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('announcement_views');
+        Schema::dropIfExists('announcement_reads');
     }
 };

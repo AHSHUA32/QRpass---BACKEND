@@ -65,11 +65,24 @@ class NotificationController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        $notifications =
+        $notificationsQuery =
             Notification::where(
                 'user_id',
                 $user->id
-            )
+            );
+
+        // System Administrators receive system activity notifications,
+        // but never announcement notifications.
+        if ($user->role === 'sysadmin') {
+            $notificationsQuery->where(
+                'type',
+                '!=',
+                'announcement'
+            );
+        }
+
+        $notifications =
+            $notificationsQuery
                 ->latest()
                 ->get();
 
