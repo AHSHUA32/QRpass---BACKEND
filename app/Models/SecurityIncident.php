@@ -10,17 +10,26 @@ class SecurityIncident extends Model
     use HasFactory;
 
     protected $fillable = [
-        'reported_by',
-        'registered_item_id',
-        'scanned_code',
-        'incident_type',
-        'item_name',
-        'serial_number',
-        'gate',
-        'status',
-        'description',
-        'reported_at',
-    ];
+    'reported_by',
+    'registered_item_id',
+    'scanned_code',
+    'incident_type',
+    'item_name',
+    'serial_number',
+
+    'owner_name',
+    'owner_id_number',
+
+    'carrier_name',
+    'carrier_id_number',
+
+    'direction',
+
+    'gate',
+    'status',
+    'description',
+    'reported_at',
+];
 
     protected $casts = [
         'reported_at' => 'datetime',

@@ -332,6 +332,10 @@ Route::middleware([
     Route::middleware(
         'role:security'
     )->group(function () {
+        Route::put(
+    '/lost-found/{id}',
+    [LostFoundItemController::class, 'update']
+);
 
 
         /*

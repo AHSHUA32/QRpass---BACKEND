@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class LostFoundItem extends Model
 {
@@ -11,55 +12,31 @@ class LostFoundItem extends Model
 
     protected $fillable = [
         'reported_by',
-
-        // Found report
         'found_by_user_id',
-
-        // Lost report
         'lost_by_user_id',
-
-        // CSU / Security processor
         'processed_by_user_id',
-
-        // Report details
         'report_type',
         'item_name',
         'category',
         'brand_model',
         'color',
-
-        // Found information
         'location_found',
-        'date_found',
-
-        // Lost information
         'location_lost',
+        'date_found',
         'date_lost',
-
         'description',
         'status',
-
-        // Claim information
         'claimed_by',
         'claimed_at',
     ];
 
-    protected function casts(): array
-    {
-        return [
-            'date_found' => 'datetime',
-            'date_lost' => 'datetime',
-            'claimed_at' => 'datetime',
-        ];
-    }
+    protected $casts = [
+        'date_found' => 'datetime',
+        'date_lost' => 'datetime',
+        'claimed_at' => 'datetime',
+    ];
 
-    /*
-    |--------------------------------------------------------------------------
-    | PERSON WHO FOUND / TURNED OVER ITEM
-    |--------------------------------------------------------------------------
-    */
-
-    public function finder()
+    public function finder(): BelongsTo
     {
         return $this->belongsTo(
             User::class,
@@ -67,13 +44,7 @@ class LostFoundItem extends Model
         );
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | PERSON WHO LOST THE ITEM
-    |--------------------------------------------------------------------------
-    */
-
-    public function lostBy()
+    public function lostBy(): BelongsTo
     {
         return $this->belongsTo(
             User::class,
@@ -81,13 +52,7 @@ class LostFoundItem extends Model
         );
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | CSU / SECURITY PROCESSOR
-    |--------------------------------------------------------------------------
-    */
-
-    public function processor()
+    public function processor(): BelongsTo
     {
         return $this->belongsTo(
             User::class,
@@ -95,13 +60,7 @@ class LostFoundItem extends Model
         );
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | REPORTER
-    |--------------------------------------------------------------------------
-    */
-
-    public function reporter()
+    public function reporter(): BelongsTo
     {
         return $this->belongsTo(
             User::class,
@@ -109,13 +68,7 @@ class LostFoundItem extends Model
         );
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | CLAIMANT
-    |--------------------------------------------------------------------------
-    */
-
-    public function claimant()
+    public function claimant(): BelongsTo
     {
         return $this->belongsTo(
             User::class,

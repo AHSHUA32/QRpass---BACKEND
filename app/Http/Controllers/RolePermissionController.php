@@ -5,10 +5,77 @@ namespace App\Http\Controllers;
 use App\Models\RolePermission;
 use App\Services\AuditLogger;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 
 class RolePermissionController extends Controller
 {
+    /*
+    |--------------------------------------------------------------------------
+    | FIXED ROLE PERMISSION MATRIX
+    |--------------------------------------------------------------------------
+    |
+    | All QRPass role permissions are fixed and cannot be edited.
+    |
+    | Student:
+    | - Register Items
+    | - View QR Codes
+    |
+    | Security (CSU):
+    | - Scan & Verify
+    | - View Reports
+    |
+    | PCO Staff:
+    | - View QR Codes
+    | - Approve Requests
+    | - View Reports
+    |
+    | System Administrator:
+    | - View Reports
+    | - Manage Users
+    |
+    */
+
+    private function fixedPermissions(): array
+    {
+        return [
+            'student' => [
+                'register_items' => true,
+                'view_qr_codes' => true,
+                'approve_requests' => false,
+                'scan_verify' => false,
+                'view_reports' => false,
+                'manage_users' => false,
+            ],
+
+            'security' => [
+                'register_items' => false,
+                'view_qr_codes' => false,
+                'approve_requests' => false,
+                'scan_verify' => true,
+                'view_reports' => true,
+                'manage_users' => false,
+            ],
+
+            'pco' => [
+                'register_items' => false,
+                'view_qr_codes' => true,
+                'approve_requests' => true,
+                'scan_verify' => false,
+                'view_reports' => true,
+                'manage_users' => false,
+            ],
+
+            'sysadmin' => [
+                'register_items' => false,
+                'view_qr_codes' => false,
+                'approve_requests' => false,
+                'scan_verify' => false,
+                'view_reports' => true,
+                'manage_users' => true,
+            ],
+        ];
+    }
+
+
     /*
     |--------------------------------------------------------------------------
     | GET ROLE PERMISSIONS
@@ -17,6 +84,25 @@ class RolePermissionController extends Controller
 
     public function index()
     {
+        $fixedPermissions =
+            $this->fixedPermissions();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Keep every database row synchronized with the fixed permission matrix.
+        |--------------------------------------------------------------------------
+        */
+
+        foreach (
+            $fixedPermissions
+            as $role => $permissions
+        ) {
+            RolePermission::updateOrCreate(
+                ['role' => $role],
+                $permissions
+            );
+        }
+
         $roles = [
             'student',
             'security',
@@ -24,31 +110,22 @@ class RolePermissionController extends Controller
             'sysadmin',
         ];
 
-        foreach ($roles as $role) {
-            RolePermission::firstOrCreate(
-                ['role' => $role],
-                [
-                    'register_items' => false,
-                    'view_qr_codes' => false,
-                    'approve_requests' => false,
-                    'scan_verify' => false,
-                    'view_reports' => false,
-                    'manage_users' => false,
-                ]
-            );
-        }
-
-        $permissions = RolePermission::whereIn(
-            'role',
-            $roles
-        )
-            ->orderByRaw(
-                "FIELD(role, 'student', 'security', 'pco', 'sysadmin')"
+        $permissions =
+            RolePermission::whereIn(
+                'role',
+                $roles
             )
-            ->get();
+                ->orderByRaw(
+                    "FIELD(role, 'student', 'security', 'pco', 'sysadmin')"
+                )
+                ->get();
 
         return response()->json([
-            'permissions' => $permissions,
+            'permissions' =>
+                $permissions,
+
+            'fixed' =>
+                true,
         ]);
     }
 
@@ -57,64 +134,24 @@ class RolePermissionController extends Controller
     |--------------------------------------------------------------------------
     | UPDATE ROLE PERMISSIONS
     |--------------------------------------------------------------------------
+    |
+    | Role permissions are fixed. This endpoint remains available for
+    | compatibility with the existing API, but any request is forced back to
+    | the approved QRPass permission matrix.
+    |
     */
 
     public function update(
         Request $request,
         string $role
     ) {
-        $validated = $request->validate([
-            'role' => [
-                'sometimes',
-                Rule::in([
-                    'student',
-                    'security',
-                    'pco',
-                    'sysadmin',
-                ]),
-            ],
-
-            'register_items' => [
-                'required',
-                'boolean',
-            ],
-
-            'view_qr_codes' => [
-                'required',
-                'boolean',
-            ],
-
-            'approve_requests' => [
-                'required',
-                'boolean',
-            ],
-
-            'scan_verify' => [
-                'required',
-                'boolean',
-            ],
-
-            'view_reports' => [
-                'required',
-                'boolean',
-            ],
-
-            'manage_users' => [
-                'required',
-                'boolean',
-            ],
-        ]);
+        $fixedPermissions =
+            $this->fixedPermissions();
 
         if (
-            !in_array(
+            !array_key_exists(
                 $role,
-                [
-                    'student',
-                    'security',
-                    'pco',
-                    'sysadmin',
-                ],
-                true
+                $fixedPermissions
             )
         ) {
             return response()->json([
@@ -123,79 +160,48 @@ class RolePermissionController extends Controller
             ], 422);
         }
 
-
-        /*
-        |--------------------------------------------------------------------------
-        | Protect System Administrator
-        |--------------------------------------------------------------------------
-        |
-        | Keep the System Administrator with full access so the system cannot
-        | accidentally lock every administrator out of management functions.
-        |
-        */
-
-        if ($role === 'sysadmin') {
-            $validated = [
-                'register_items' => true,
-                'view_qr_codes' => true,
-                'approve_requests' => true,
-                'scan_verify' => true,
-                'view_reports' => true,
-                'manage_users' => true,
-            ];
-        }
-
-
-        $permission = RolePermission::firstOrCreate(
-            ['role' => $role]
-        );
+        $permission =
+            RolePermission::firstOrCreate(
+                ['role' => $role]
+            );
 
         $before = [
             'register_items' =>
-                (bool) $permission->register_items,
+                (bool)
+                $permission->register_items,
 
             'view_qr_codes' =>
-                (bool) $permission->view_qr_codes,
+                (bool)
+                $permission->view_qr_codes,
 
             'approve_requests' =>
-                (bool) $permission->approve_requests,
+                (bool)
+                $permission->approve_requests,
 
             'scan_verify' =>
-                (bool) $permission->scan_verify,
+                (bool)
+                $permission->scan_verify,
 
             'view_reports' =>
-                (bool) $permission->view_reports,
+                (bool)
+                $permission->view_reports,
 
             'manage_users' =>
-                (bool) $permission->manage_users,
+                (bool)
+                $permission->manage_users,
         ];
-
 
         /*
         |--------------------------------------------------------------------------
-        | SAVE PERMISSIONS
+        | FORCE FIXED VALUES
         |--------------------------------------------------------------------------
         */
 
-        $permission->update([
-            'register_items' =>
-                $validated['register_items'],
+        $permission->update(
+            $fixedPermissions[$role]
+        );
 
-            'view_qr_codes' =>
-                $validated['view_qr_codes'],
-
-            'approve_requests' =>
-                $validated['approve_requests'],
-
-            'scan_verify' =>
-                $validated['scan_verify'],
-
-            'view_reports' =>
-                $validated['view_reports'],
-
-            'manage_users' =>
-                $validated['manage_users'],
-        ]);
+        $permission->refresh();
 
 
         /*
@@ -206,13 +212,13 @@ class RolePermissionController extends Controller
 
         AuditLogger::log(
             action:
-                'update_role_permissions',
+                'enforce_fixed_role_permissions',
 
             description:
                 $request->user()->name .
-                ' updated permissions for the "' .
+                ' accessed the fixed permission configuration for the "' .
                 $role .
-                '" role.',
+                '" role. The approved QRPass permission matrix was enforced.',
 
             eventType:
                 'update',
@@ -227,27 +233,36 @@ class RolePermissionController extends Controller
                 'role' =>
                     $role,
 
+                'fixed' =>
+                    true,
+
                 'before' =>
                     $before,
 
                 'after' => [
                     'register_items' =>
-                        (bool) $permission->register_items,
+                        (bool)
+                        $permission->register_items,
 
                     'view_qr_codes' =>
-                        (bool) $permission->view_qr_codes,
+                        (bool)
+                        $permission->view_qr_codes,
 
                     'approve_requests' =>
-                        (bool) $permission->approve_requests,
+                        (bool)
+                        $permission->approve_requests,
 
                     'scan_verify' =>
-                        (bool) $permission->scan_verify,
+                        (bool)
+                        $permission->scan_verify,
 
                     'view_reports' =>
-                        (bool) $permission->view_reports,
+                        (bool)
+                        $permission->view_reports,
 
                     'manage_users' =>
-                        (bool) $permission->manage_users,
+                        (bool)
+                        $permission->manage_users,
                 ],
             ],
 
@@ -258,10 +273,13 @@ class RolePermissionController extends Controller
 
         return response()->json([
             'message' =>
-                'Role permissions updated successfully.',
+                'Role permissions are fixed and cannot be edited.',
 
             'permission' =>
                 $permission,
+
+            'fixed' =>
+                true,
         ]);
     }
 }

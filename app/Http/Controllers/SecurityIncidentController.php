@@ -16,13 +16,12 @@ class SecurityIncidentController extends Controller
 
     public function index()
     {
-        $incidents = SecurityIncident::with([
-            'reporter',
-            'item.user',
-        ])
-            ->latest('reported_at')
-            ->get();
-
+       $incidents = SecurityIncident::with([
+    'reporter',
+    'item.user',
+])
+    ->orderByDesc('id')
+    ->get();
         return response()->json([
             'incidents' => $incidents,
         ]);
@@ -53,12 +52,67 @@ class SecurityIncidentController extends Controller
             'serial_number' =>
                 'nullable|string|max:255',
 
+            /*
+            |--------------------------------------------------------------------------
+            | Owner Details
+            |--------------------------------------------------------------------------
+            */
+
+            'owner_name' =>
+                'nullable|string|max:255',
+
+            'owner_id_number' =>
+                'nullable|string|max:100',
+
+            /*
+            |--------------------------------------------------------------------------
+            | Person Carrying the Item
+            |--------------------------------------------------------------------------
+            */
+
+            'carrier_name' =>
+                'nullable|string|max:255',
+
+            'carrier_id_number' =>
+                'nullable|string|max:100',
+
+            /*
+            |--------------------------------------------------------------------------
+            | Entry / Exit Direction
+            |--------------------------------------------------------------------------
+            */
+
+            'direction' =>
+                'nullable|string|max:20',
+
             'gate' =>
                 'required|string|max:100',
 
             'description' =>
                 'nullable|string|max:1000',
         ]);
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Normalize Direction
+        |--------------------------------------------------------------------------
+        */
+
+        $direction = null;
+
+        if ($request->filled('direction')) {
+            $direction = strtoupper(
+                trim($request->direction)
+            );
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Create Incident
+        |--------------------------------------------------------------------------
+        */
 
         $incident = SecurityIncident::create([
             'reported_by' =>
@@ -79,6 +133,39 @@ class SecurityIncidentController extends Controller
             'serial_number' =>
                 $request->serial_number,
 
+            /*
+            |--------------------------------------------------------------------------
+            | Owner Information
+            |--------------------------------------------------------------------------
+            */
+
+            'owner_name' =>
+                $request->owner_name,
+
+            'owner_id_number' =>
+                $request->owner_id_number,
+
+            /*
+            |--------------------------------------------------------------------------
+            | Person Carrying Item
+            |--------------------------------------------------------------------------
+            */
+
+            'carrier_name' =>
+                $request->carrier_name,
+
+            'carrier_id_number' =>
+                $request->carrier_id_number,
+
+            /*
+            |--------------------------------------------------------------------------
+            | Direction
+            |--------------------------------------------------------------------------
+            */
+
+            'direction' =>
+                $direction,
+
             'gate' =>
                 $request->gate,
 
@@ -91,6 +178,13 @@ class SecurityIncidentController extends Controller
             'reported_at' =>
                 now(),
         ]);
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Load Related Data
+        |--------------------------------------------------------------------------
+        */
 
         $incident->load([
             'reporter',
@@ -137,6 +231,39 @@ class SecurityIncidentController extends Controller
 
                 'serial_number' =>
                     $incident->serial_number,
+
+                /*
+                |--------------------------------------------------------------------------
+                | Owner
+                |--------------------------------------------------------------------------
+                */
+
+                'owner_name' =>
+                    $incident->owner_name,
+
+                'owner_id_number' =>
+                    $incident->owner_id_number,
+
+                /*
+                |--------------------------------------------------------------------------
+                | Carrier
+                |--------------------------------------------------------------------------
+                */
+
+                'carrier_name' =>
+                    $incident->carrier_name,
+
+                'carrier_id_number' =>
+                    $incident->carrier_id_number,
+
+                /*
+                |--------------------------------------------------------------------------
+                | Location / Direction
+                |--------------------------------------------------------------------------
+                */
+
+                'direction' =>
+                    $incident->direction,
 
                 'gate' =>
                     $incident->gate,
@@ -215,6 +342,39 @@ class SecurityIncidentController extends Controller
 
                 'serial_number' =>
                     $incident->serial_number,
+
+                /*
+                |--------------------------------------------------------------------------
+                | Owner
+                |--------------------------------------------------------------------------
+                */
+
+                'owner_name' =>
+                    $incident->owner_name,
+
+                'owner_id_number' =>
+                    $incident->owner_id_number,
+
+                /*
+                |--------------------------------------------------------------------------
+                | Carrier
+                |--------------------------------------------------------------------------
+                */
+
+                'carrier_name' =>
+                    $incident->carrier_name,
+
+                'carrier_id_number' =>
+                    $incident->carrier_id_number,
+
+                /*
+                |--------------------------------------------------------------------------
+                | Location / Direction
+                |--------------------------------------------------------------------------
+                */
+
+                'direction' =>
+                    $incident->direction,
 
                 'gate' =>
                     $incident->gate,
