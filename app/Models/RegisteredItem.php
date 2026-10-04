@@ -17,6 +17,8 @@ class RegisteredItem extends Model
         'color',
         'item_type',
         'purpose',
+        'quantity',
+        'complete_description',
         'status',
         'qr_code',
         'approved_at',
@@ -26,6 +28,7 @@ class RegisteredItem extends Model
     protected function casts(): array
     {
         return [
+            'quantity' => 'integer',
             'approved_at' => 'datetime',
             'qr_expires_at' => 'datetime',
         ];
