@@ -26,6 +26,14 @@ use App\Http\Controllers\AnnouncementController;
 |--------------------------------------------------------------------------
 */
 
+Route::get(
+    '/lost-found-photo/{id}',
+    [
+        LostFoundItemController::class,
+        'photo',
+    ]
+)->whereNumber('id');
+
 Route::get('/test', function () {
     return response()->json([
         'message' =>

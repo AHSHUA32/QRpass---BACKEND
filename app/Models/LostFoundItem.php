@@ -25,6 +25,10 @@ class LostFoundItem extends Model
         'date_found',
         'date_lost',
         'description',
+
+        // Lost & Found item photo
+        'photo_path',
+
         'status',
         'claimed_by',
         'claimed_at',
@@ -35,6 +39,33 @@ class LostFoundItem extends Model
         'date_lost' => 'datetime',
         'claimed_at' => 'datetime',
     ];
+
+    /*
+    |--------------------------------------------------------------------------
+    | PHOTO URL
+    |--------------------------------------------------------------------------
+    */
+
+    protected $appends = [
+        'photo_url',
+    ];
+
+    public function getPhotoUrlAttribute(): ?string
+    {
+        if (!$this->photo_path) {
+            return null;
+        }
+
+        return url(
+            '/api/lost-found-photo/' . $this->id
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | RELATIONSHIPS
+    |--------------------------------------------------------------------------
+    */
 
     public function finder(): BelongsTo
     {

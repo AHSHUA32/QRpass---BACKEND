@@ -122,6 +122,13 @@ class LostFoundItemController extends Controller
                 'max:2000',
             ],
 
+            'photo' => [
+            'nullable',
+            'image',
+            'mimes:jpeg,jpg,png,webp',
+            'max:5120',
+            ],
+
             /*
             |--------------------------------------------------------------------------
             | FOUND DETAILS
@@ -162,6 +169,14 @@ class LostFoundItemController extends Controller
                 'before_or_equal:today',
             ],
         ]);
+
+        $photoPath = null;
+
+if ($request->hasFile('photo')) {
+    $photoPath = $request
+        ->file('photo')
+        ->store('lost-found', 'public');
+}
 
         /*
         |--------------------------------------------------------------------------
@@ -232,6 +247,9 @@ class LostFoundItemController extends Controller
                     !empty($validated['description'])
                         ? trim($validated['description'])
                         : null,
+
+                'photo_path' =>
+                 $photoPath,
 
                 'status' =>
                     'Found',
@@ -329,6 +347,11 @@ class LostFoundItemController extends Controller
                 !empty($validated['description'])
                     ? trim($validated['description'])
                     : null,
+
+            'photo_path' =>
+             $photoPath,
+
+
 
             'status' =>
                 'Lost',
@@ -809,5 +832,25 @@ class LostFoundItemController extends Controller
 
             'item' => $item,
         ]);
+    }
+
+    public function photo($id)
+{
+    $item =
+        LostFoundItem::findOrFail($id);
+
+    if (!$item->photo_path) {
+        abort(404);
+    }
+
+    $path = storage_path(
+        'app/public/' . $item->photo_path
+    );
+
+    if (!is_file($path)) {
+        abort(404);
+    }
+
+    return response()->file($path);
     }
 }
