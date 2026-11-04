@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\LostFoundItem;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class LostFoundItemController extends Controller
 {
@@ -824,7 +825,7 @@ if ($request->hasFile('photo')) {
             'claimant:id,name,username,role',
         ]);
     
-        return response()->json([
+                return response()->json([
             'message' =>
                 'Lost item recovered successfully. Turnover credit was assigned to ' .
                 $finder->name .
@@ -834,23 +835,111 @@ if ($request->hasFile('photo')) {
         ]);
     }
 
+
+    /*
+    |--------------------------------------------------------------------------
+    | SECURITY DELETE LOST & FOUND REPORT
+    |--------------------------------------------------------------------------
+    */
+
+    public function destroy(
+        Request $request,
+        $id
+    ) {
+        $user = $request->user();
+
+        /*
+        |--------------------------------------------------------------------------
+        | AUTHENTICATION CHECK
+        |--------------------------------------------------------------------------
+        */
+
+        if (!$user) {
+            return response()->json([
+                'message' =>
+                    'Unauthenticated.',
+            ], 401);
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | SECURITY ONLY
+        |--------------------------------------------------------------------------
+        */
+
+        if ($user->role !== 'security') {
+            return response()->json([
+                'message' =>
+                    'Only Security Personnel can delete Lost & Found reports.',
+            ], 403);
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | FIND LOST & FOUND REPORT
+        |--------------------------------------------------------------------------
+        */
+
+        $item =
+            LostFoundItem::findOrFail($id);
+
+        /*
+        |--------------------------------------------------------------------------
+        | DELETE ATTACHED PHOTO
+        |--------------------------------------------------------------------------
+        |
+        | If a report has an uploaded photo, delete the actual image file
+        | from storage/app/public/lost-found before deleting the report.
+        |
+        */
+
+        if ($item->photo_path) {
+            Storage::disk('public')->delete(
+                $item->photo_path
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | DELETE DATABASE RECORD
+        |--------------------------------------------------------------------------
+        */
+
+        $item->delete();
+
+        return response()->json([
+            'message' =>
+                'Lost & Found report deleted successfully.',
+        ]);
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | DISPLAY LOST & FOUND PHOTO
+    |--------------------------------------------------------------------------
+    */
+
     public function photo($id)
-{
-    $item =
-        LostFoundItem::findOrFail($id);
+    {
+        $item =
+            LostFoundItem::findOrFail($id);
 
-    if (!$item->photo_path) {
-        abort(404);
-    }
+        if (!$item->photo_path) {
+            abort(404);
+        }
 
-    $path = storage_path(
-        'app/public/' . $item->photo_path
-    );
+        $path = storage_path(
+            'app/public/' .
+            $item->photo_path
+        );
 
-    if (!is_file($path)) {
-        abort(404);
-    }
+        if (!is_file($path)) {
+            abort(404);
+        }
 
-    return response()->file($path);
+        return response()->file(
+            $path
+        );
     }
 }

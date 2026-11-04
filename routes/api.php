@@ -331,107 +331,132 @@ Route::middleware([
     });
 
 
+   /*
+|--------------------------------------------------------------------------
+| SECURITY PERSONNEL / CSU ROUTES
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware(
+    'role:security'
+)->group(function () {
+
     /*
     |--------------------------------------------------------------------------
-    | SECURITY PERSONNEL / CSU ROUTES
+    | EDIT LOST & FOUND REPORT
     |--------------------------------------------------------------------------
     */
 
-    Route::middleware(
-        'role:security'
-    )->group(function () {
-        Route::put(
-    '/lost-found/{id}',
-    [LostFoundItemController::class, 'update']
-);
+    Route::put(
+        '/lost-found/{id}',
+        [
+            LostFoundItemController::class,
+            'update',
+        ]
+    );
 
 
-        /*
-        |--------------------------------------------------------------------------
-        | QR Verification
-        |--------------------------------------------------------------------------
-        */
+    /*
+    |--------------------------------------------------------------------------
+    | DELETE LOST & FOUND REPORT
+    |--------------------------------------------------------------------------
+    */
 
-        Route::post(
-            '/items/verify',
-            [
-                RegisteredItemController::class,
-                'verify',
-            ]
-        )->middleware(
-            'permission:scan_verify'
-        );
+    Route::delete(
+        '/lost-found/{id}',
+        [
+            LostFoundItemController::class,
+            'destroy',
+        ]
+    );
 
 
-        /*
-        |--------------------------------------------------------------------------
-        | Create Scan Log
-        |--------------------------------------------------------------------------
-        */
+    /*
+    |--------------------------------------------------------------------------
+    | QR Verification
+    |--------------------------------------------------------------------------
+    */
 
-        Route::post(
-            '/scan-logs',
-            [
-                ScanLogController::class,
-                'store',
-            ]
-        )->middleware(
-            'permission:scan_verify'
-        );
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Security Incidents
-        |--------------------------------------------------------------------------
-        */
-
-        Route::post(
-            '/security-incidents',
-            [
-                SecurityIncidentController::class,
-                'store',
-            ]
-        );
-
-        Route::put(
-            '/security-incidents/{id}/resolve',
-            [
-                SecurityIncidentController::class,
-                'resolve',
-            ]
-        );
+    Route::post(
+        '/items/verify',
+        [
+            RegisteredItemController::class,
+            'verify',
+        ]
+    )->middleware(
+        'permission:scan_verify'
+    );
 
 
-        /*
-        |--------------------------------------------------------------------------
-        | Create Lost & Found Record
-        |--------------------------------------------------------------------------
-        */
+    /*
+    |--------------------------------------------------------------------------
+    | Create Scan Log
+    |--------------------------------------------------------------------------
+    */
 
-        Route::post(
-            '/lost-found',
-            [
-                LostFoundItemController::class,
-                'store',
-            ]
-        );
+    Route::post(
+        '/scan-logs',
+        [
+            ScanLogController::class,
+            'store',
+        ]
+    )->middleware(
+        'permission:scan_verify'
+    );
 
 
-        /*
-        |--------------------------------------------------------------------------
-        | Mark Lost & Found Item as Recovered
-        |--------------------------------------------------------------------------
-        */
+    /*
+    |--------------------------------------------------------------------------
+    | Security Incidents
+    |--------------------------------------------------------------------------
+    */
 
-        Route::put(
-            '/lost-found/{id}/recovered',
-            [
-                LostFoundItemController::class,
-                'markRecovered',
-            ]
-        );
-    });
+    Route::post(
+        '/security-incidents',
+        [
+            SecurityIncidentController::class,
+            'store',
+        ]
+    );
+
+    Route::put(
+        '/security-incidents/{id}/resolve',
+        [
+            SecurityIncidentController::class,
+            'resolve',
+        ]
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Create Lost & Found Record
+    |--------------------------------------------------------------------------
+    */
+
+    Route::post(
+        '/lost-found',
+        [
+            LostFoundItemController::class,
+            'store',
+        ]
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Mark Lost & Found Item as Recovered
+    |--------------------------------------------------------------------------
+    */
+
+    Route::put(
+        '/lost-found/{id}/recovered',
+        [
+            LostFoundItemController::class,
+            'markRecovered',
+        ]
+    );
+});
 
 
     /*
