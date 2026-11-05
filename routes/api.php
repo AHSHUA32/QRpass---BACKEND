@@ -52,10 +52,12 @@ Route::post(
     '/login',
     [AuthController::class, 'login']
 );
+
 Route::post(
     '/verify-2fa',
     [AuthController::class, 'verifyTwoFactor']
 );
+
 Route::post(
     '/register',
     [AuthController::class, 'register']
@@ -150,8 +152,9 @@ Route::middleware([
             'removeProfilePhoto',
         ]
     );
-    
-        /*
+
+
+    /*
     |--------------------------------------------------------------------------
     | SESSION POLICY
     |--------------------------------------------------------------------------
@@ -164,6 +167,7 @@ Route::middleware([
             'sessionPolicy',
         ]
     );
+
 
     /*
     |--------------------------------------------------------------------------
@@ -184,10 +188,6 @@ Route::middleware([
     |--------------------------------------------------------------------------
     | ACTIVE ANNOUNCEMENTS - ALL AUTHENTICATED USERS
     |--------------------------------------------------------------------------
-    |
-    | Returns only published and currently active announcements intended
-    | for the logged-in user's role or for everyone.
-    |
     */
 
     Route::get(
@@ -205,6 +205,7 @@ Route::middleware([
             'markViewed',
         ]
     );
+
 
     /*
     |--------------------------------------------------------------------------
@@ -225,7 +226,10 @@ Route::middleware([
 
         Route::get(
             '/items',
-            [RegisteredItemController::class, 'index']
+            [
+                RegisteredItemController::class,
+                'index',
+            ]
         );
 
         Route::get(
@@ -237,7 +241,7 @@ Route::middleware([
         )->middleware(
             'permission:view_qr_codes'
         );
-        
+
         Route::post(
             '/items',
             [
@@ -246,6 +250,21 @@ Route::middleware([
             ]
         )->middleware(
             'permission:register_items'
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | DELETE OWN PENDING / EXPIRED PERMIT
+        |--------------------------------------------------------------------------
+        */
+
+        Route::delete(
+            '/items/{id}',
+            [
+                RegisteredItemController::class,
+                'destroy',
+            ]
         );
 
 
@@ -331,132 +350,133 @@ Route::middleware([
     });
 
 
-   /*
-|--------------------------------------------------------------------------
-| SECURITY PERSONNEL / CSU ROUTES
-|--------------------------------------------------------------------------
-*/
-
-Route::middleware(
-    'role:security'
-)->group(function () {
-
     /*
     |--------------------------------------------------------------------------
-    | EDIT LOST & FOUND REPORT
+    | SECURITY PERSONNEL / CSU ROUTES
     |--------------------------------------------------------------------------
     */
 
-    Route::put(
-        '/lost-found/{id}',
-        [
-            LostFoundItemController::class,
-            'update',
-        ]
-    );
+    Route::middleware(
+        'role:security'
+    )->group(function () {
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | DELETE LOST & FOUND REPORT
-    |--------------------------------------------------------------------------
-    */
+        /*
+        |--------------------------------------------------------------------------
+        | EDIT LOST & FOUND REPORT
+        |--------------------------------------------------------------------------
+        */
 
-    Route::delete(
-        '/lost-found/{id}',
-        [
-            LostFoundItemController::class,
-            'destroy',
-        ]
-    );
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | QR Verification
-    |--------------------------------------------------------------------------
-    */
-
-    Route::post(
-        '/items/verify',
-        [
-            RegisteredItemController::class,
-            'verify',
-        ]
-    )->middleware(
-        'permission:scan_verify'
-    );
+        Route::put(
+            '/lost-found/{id}',
+            [
+                LostFoundItemController::class,
+                'update',
+            ]
+        );
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | Create Scan Log
-    |--------------------------------------------------------------------------
-    */
+        /*
+        |--------------------------------------------------------------------------
+        | DELETE LOST & FOUND REPORT
+        |--------------------------------------------------------------------------
+        */
 
-    Route::post(
-        '/scan-logs',
-        [
-            ScanLogController::class,
-            'store',
-        ]
-    )->middleware(
-        'permission:scan_verify'
-    );
+        Route::delete(
+            '/lost-found/{id}',
+            [
+                LostFoundItemController::class,
+                'destroy',
+            ]
+        );
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | Security Incidents
-    |--------------------------------------------------------------------------
-    */
+        /*
+        |--------------------------------------------------------------------------
+        | QR Verification
+        |--------------------------------------------------------------------------
+        */
 
-    Route::post(
-        '/security-incidents',
-        [
-            SecurityIncidentController::class,
-            'store',
-        ]
-    );
-
-    Route::put(
-        '/security-incidents/{id}/resolve',
-        [
-            SecurityIncidentController::class,
-            'resolve',
-        ]
-    );
+        Route::post(
+            '/items/verify',
+            [
+                RegisteredItemController::class,
+                'verify',
+            ]
+        )->middleware(
+            'permission:scan_verify'
+        );
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | Create Lost & Found Record
-    |--------------------------------------------------------------------------
-    */
+        /*
+        |--------------------------------------------------------------------------
+        | Create Scan Log
+        |--------------------------------------------------------------------------
+        */
 
-    Route::post(
-        '/lost-found',
-        [
-            LostFoundItemController::class,
-            'store',
-        ]
-    );
+        Route::post(
+            '/scan-logs',
+            [
+                ScanLogController::class,
+                'store',
+            ]
+        )->middleware(
+            'permission:scan_verify'
+        );
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | Mark Lost & Found Item as Recovered
-    |--------------------------------------------------------------------------
-    */
+        /*
+        |--------------------------------------------------------------------------
+        | Security Incidents
+        |--------------------------------------------------------------------------
+        */
 
-    Route::put(
-        '/lost-found/{id}/recovered',
-        [
-            LostFoundItemController::class,
-            'markRecovered',
-        ]
-    );
-});
+        Route::post(
+            '/security-incidents',
+            [
+                SecurityIncidentController::class,
+                'store',
+            ]
+        );
+
+        Route::put(
+            '/security-incidents/{id}/resolve',
+            [
+                SecurityIncidentController::class,
+                'resolve',
+            ]
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Create Lost & Found Record
+        |--------------------------------------------------------------------------
+        */
+
+        Route::post(
+            '/lost-found',
+            [
+                LostFoundItemController::class,
+                'store',
+            ]
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Mark Lost & Found Item as Recovered
+        |--------------------------------------------------------------------------
+        */
+
+        Route::put(
+            '/lost-found/{id}/recovered',
+            [
+                LostFoundItemController::class,
+                'markRecovered',
+            ]
+        );
+    });
 
 
     /*
@@ -526,19 +546,6 @@ Route::middleware(
     |--------------------------------------------------------------------------
     | LOST & FOUND REGISTRY
     |--------------------------------------------------------------------------
-    |
-    | Student:
-    |   - Browse records
-    |   - Claim found items
-    |
-    | Security:
-    |   - Browse records
-    |   - Create records
-    |   - Process claims
-    |   - Mark records recovered
-    |
-    | Students do NOT create Lost & Found reports.
-    |
     */
 
     Route::middleware(
@@ -654,6 +661,7 @@ Route::middleware(
                 'setPublished',
             ]
         );
+
         Route::delete(
             '/announcements/{id}',
             [
@@ -731,7 +739,7 @@ Route::middleware(
         )->middleware(
             'permission:manage_users'
         );
-        
+
         Route::post(
             '/users',
             [
@@ -741,7 +749,7 @@ Route::middleware(
         )->middleware(
             'permission:manage_users'
         );
-        
+
         Route::put(
             '/users/{id}',
             [
@@ -751,7 +759,7 @@ Route::middleware(
         )->middleware(
             'permission:manage_users'
         );
-        
+
         Route::put(
             '/users/{id}/status',
             [
@@ -800,19 +808,20 @@ Route::middleware(
             ]
         );
 
-                    /*
-            |--------------------------------------------------------------------------
-            | PERFORMANCE MONITORING
-            |--------------------------------------------------------------------------
-            */
 
-            Route::get(
-                '/performance',
-                [
-                    PerformanceController::class,
-                    'index',
-                ]
-            );
+        /*
+        |--------------------------------------------------------------------------
+        | PERFORMANCE MONITORING
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get(
+            '/performance',
+            [
+                PerformanceController::class,
+                'index',
+            ]
+        );
 
 
         /*

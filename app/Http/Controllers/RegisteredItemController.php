@@ -17,60 +17,69 @@ class RegisteredItemController extends Controller
     | STUDENT - VIEW OWN REGISTERED ITEMS
     |--------------------------------------------------------------------------
     */
-
     public function index(Request $request)
     {
-        $items =
-            RegisteredItem::where(
-                'user_id',
-                $request->user()->id
-            )
-                ->latest()
-                ->get();
+        $items = RegisteredItem::where(
+            'user_id',
+            $request->user()->id
+        )
+            ->latest()
+            ->get();
 
         return response()->json([
-            'items' =>
-                $items,
+            'items' => $items,
         ]);
     }
-
 
     /*
     |--------------------------------------------------------------------------
     | STUDENT - VIEW OWN QR CODES
     |--------------------------------------------------------------------------
     */
-
     public function qrCodes(Request $request)
     {
-        $items =
-            RegisteredItem::where(
-                'user_id',
-                $request->user()->id
+        $items = RegisteredItem::where(
+            'user_id',
+            $request->user()->id
+        )
+            ->where(
+                'status',
+                'approved'
             )
-                ->whereIn(
-                    'status',
-                    [
-                        'approved',
-                        'pending',
-                    ]
-                )
-                ->latest()
-                ->get();
+            ->whereNotNull(
+                'qr_code'
+            )
+            ->where(
+                function ($query) {
+                    $query
+                        ->whereNull(
+                            'qr_expires_at'
+                        )
+                        ->orWhere(
+                            'qr_expires_at',
+                            '>',
+                            now()
+                        );
+                }
+            )
+            ->latest()
+            ->get();
 
         return response()->json([
-            'items' =>
-                $items,
+            'items' => $items,
         ]);
     }
-
 
     /*
     |--------------------------------------------------------------------------
     | STUDENT - REGISTER NEW ITEM
     |--------------------------------------------------------------------------
+    |
+    | Students submit only the item information. They do NOT control the permit
+    | expiration. qr_expires_at remains null while the request is pending and
+    | is assigned only when PCO/admin approves the item.
+    |
     */
-
     public function store(Request $request)
     {
         $request->validate([
@@ -91,76 +100,40 @@ class RegisteredItemController extends Controller
 
             'purpose' =>
                 'nullable|string|max:255',
-
-            /*
-            |--------------------------------------------------------------------------
-            | STUDENT REQUESTED VALID UNTIL
-            |--------------------------------------------------------------------------
-            |
-            | This can be entered during registration.
-            | The final QR expiration will be determined by the
-            | system-wide QR validity policy when PCO approves it.
-            |
-            */
-
-            'valid_until' =>
-                'nullable|date',
         ]);
 
-        /*
-        |--------------------------------------------------------------------------
-        | CREATE ITEM
-        |--------------------------------------------------------------------------
-        */
+        $item = RegisteredItem::create([
+            'user_id' =>
+                $request->user()->id,
 
-        $item =
-            RegisteredItem::create([
-                'user_id' =>
-                    $request->user()->id,
+            'item_name' =>
+                $request->item_name,
 
-                'item_name' =>
-                    $request->item_name,
+            'brand_model' =>
+                $request->brand_model,
 
-                'brand_model' =>
-                    $request->brand_model,
+            'serial_number' =>
+                $request->serial_number,
 
-                'serial_number' =>
-                    $request->serial_number,
+            'color' =>
+                $request->color,
 
-                'color' =>
-                    $request->color,
+            'item_type' =>
+                $request->item_type,
 
-                'item_type' =>
-                    $request->item_type,
+            'purpose' =>
+                $request->purpose,
 
-                'purpose' =>
-                    $request->purpose,
+            'status' =>
+                'pending',
 
-                'status' =>
-                    'pending',
+            'qr_code' =>
+                null,
 
-                'qr_code' =>
-                    null,
-
-                /*
-                |--------------------------------------------------------------------------
-                | INITIAL REQUESTED EXPIRATION
-                |--------------------------------------------------------------------------
-                |
-                | This value will be replaced by the System Settings
-                | QR validity period when PCO approves the item.
-                |
-                */
-
-                'qr_expires_at' =>
-                    $request->valid_until,
-            ]);
-
-        /*
-        |--------------------------------------------------------------------------
-        | NOTIFY STUDENT
-        |--------------------------------------------------------------------------
-        */
+            // Only PCO/admin approval may assign the permit expiration.
+            'qr_expires_at' =>
+                null,
+        ]);
 
         Notification::create([
             'user_id' =>
@@ -184,21 +157,12 @@ class RegisteredItemController extends Controller
                 null,
         ]);
 
-        /*
-        |--------------------------------------------------------------------------
-        | NOTIFY ALL PCO STAFF
-        |--------------------------------------------------------------------------
-        */
+        $pcoUsers = User::where(
+            'role',
+            'pco'
+        )->get();
 
-        $pcoUsers =
-            User::where(
-                'role',
-                'pco'
-            )->get();
-
-        foreach (
-            $pcoUsers as $pcoUser
-        ) {
+        foreach ($pcoUsers as $pcoUser) {
             Notification::create([
                 'user_id' =>
                     $pcoUser->id,
@@ -222,12 +186,6 @@ class RegisteredItemController extends Controller
                     null,
             ]);
         }
-
-        /*
-        |--------------------------------------------------------------------------
-        | AUDIT LOG - ITEM REGISTRATION
-        |--------------------------------------------------------------------------
-        */
 
         AuditLogger::log(
             action:
@@ -269,12 +227,6 @@ class RegisteredItemController extends Controller
                 $request->user()
         );
 
-        /*
-        |--------------------------------------------------------------------------
-        | RESPONSE
-        |--------------------------------------------------------------------------
-        */
-
         return response()->json([
             'message' =>
                 'Item registration submitted successfully.',
@@ -284,200 +236,226 @@ class RegisteredItemController extends Controller
         ], 201);
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | STUDENT - DELETE PENDING OR EXPIRED PERMIT
+    |--------------------------------------------------------------------------
+    */
+
+    public function destroy(
+        Request $request,
+        $id
+    ) {
+        $item =
+            RegisteredItem::where(
+                'id',
+                $id
+            )
+                ->where(
+                    'user_id',
+                    $request->user()->id
+                )
+                ->firstOrFail();
+
+        $isPending =
+            $item->status ===
+            'pending';
+
+        $isExpired =
+            $item->status ===
+                'approved' &&
+            !empty(
+                $item->qr_expires_at
+            ) &&
+            now()->greaterThanOrEqualTo(
+                $item->qr_expires_at
+            );
+
+        if (
+            !$isPending &&
+            !$isExpired
+        ) {
+            return response()->json([
+                'message' =>
+                    'Only Pending or Expired permits can be deleted.',
+            ], 422);
+        }
+
+        $displayStatus =
+            $isExpired
+                ? 'Expired'
+                : 'Pending';
+
+        /*
+        |--------------------------------------------------------------------------
+        | AUDIT LOG BEFORE DELETE
+        |--------------------------------------------------------------------------
+        */
+
+        AuditLogger::log(
+            action:
+                'delete_item_permit',
+
+            description:
+                $request->user()->name .
+                ' deleted ' .
+                strtolower(
+                    $displayStatus
+                ) .
+                ' permit for item "' .
+                $item->item_name .
+                '".',
+
+            eventType:
+                'delete',
+
+            module:
+                'Item Registration',
+
+            status:
+                'success',
+
+            metadata: [
+                'item_id' =>
+                    $item->id,
+
+                'item_name' =>
+                    $item->item_name,
+
+                'item_type' =>
+                    $item->item_type,
+
+                'serial_number' =>
+                    $item->serial_number,
+
+                'permit_state' =>
+                    $displayStatus,
+
+                'qr_code' =>
+                    $item->qr_code,
+
+                'qr_expires_at' =>
+                    $item->qr_expires_at,
+            ],
+
+            user:
+                $request->user()
+        );
+
+        $item->delete();
+
+        return response()->json([
+            'message' =>
+                $displayStatus .
+                ' permit deleted successfully.',
+        ]);
+    }
+
 
     /*
     |--------------------------------------------------------------------------
     | PCO - VIEW ALL PENDING ITEM REQUESTS
     |--------------------------------------------------------------------------
     */
-
     public function pending()
     {
-        $items =
-            RegisteredItem::with(
-                'user'
-            )
-                ->where(
-                    'status',
-                    'pending'
-                )
-                ->latest()
-                ->get();
+        $items = RegisteredItem::with('user')
+            ->where('status', 'pending')
+            ->latest()
+            ->get();
 
         return response()->json([
-            'items' =>
-                $items,
+            'items' => $items,
         ]);
     }
-
 
     /*
     |--------------------------------------------------------------------------
     | PCO / SYSTEM ADMIN - VIEW ITEM REGISTRY
     |--------------------------------------------------------------------------
     */
-
     public function allItems()
     {
-        /*
-        |--------------------------------------------------------------------------
-        | GET FLAGGED REGISTERED ITEMS
-        |--------------------------------------------------------------------------
-        */
+        $flaggedItemIds = SecurityIncident::where(
+            'status',
+            'Flagged'
+        )
+            ->whereNotNull('registered_item_id')
+            ->pluck('registered_item_id')
+            ->unique();
 
-        $flaggedItemIds =
-            SecurityIncident::where(
-                'status',
-                'Flagged'
-            )
-                ->whereNotNull(
-                    'registered_item_id'
-                )
-                ->pluck(
-                    'registered_item_id'
-                )
-                ->unique();
+        $items = RegisteredItem::with('user')
+            ->latest()
+            ->get()
+            ->map(
+                function ($item) use ($flaggedItemIds) {
+                    $isFlagged = $flaggedItemIds->contains(
+                        $item->id
+                    );
 
-        /*
-        |--------------------------------------------------------------------------
-        | LOAD ITEM REGISTRY
-        |--------------------------------------------------------------------------
-        */
+                    $isExpired =
+                        $item->qr_expires_at &&
+                        now()->greaterThan(
+                            $item->qr_expires_at
+                        );
 
-        $items =
-            RegisteredItem::with(
-                'user'
-            )
-                ->latest()
-                ->get()
-                ->map(
-                    function ($item) use (
-                        $flaggedItemIds
-                    ) {
-                        /*
-                        |--------------------------------------------------------------------------
-                        | FLAGGED
-                        |--------------------------------------------------------------------------
-                        */
+                    $isActiveQr =
+                        $item->status === 'approved' &&
+                        !empty($item->qr_code) &&
+                        !$isExpired &&
+                        !$isFlagged;
 
-                        $isFlagged =
-                            $flaggedItemIds
-                                ->contains(
-                                    $item->id
-                                );
+                    $item->is_flagged =
+                        $isFlagged;
 
-                        /*
-                        |--------------------------------------------------------------------------
-                        | EXPIRED
-                        |--------------------------------------------------------------------------
-                        */
+                    $item->is_expired =
+                        $isExpired;
 
-                        $isExpired =
-                            $item->qr_expires_at &&
-                            now()->greaterThan(
-                                $item->qr_expires_at
-                            );
+                    $item->is_active_qr =
+                        $isActiveQr;
 
-                        /*
-                        |--------------------------------------------------------------------------
-                        | ACTIVE QR
-                        |--------------------------------------------------------------------------
-                        */
-
-                        $isActiveQr =
-                            $item->status ===
-                                'approved' &&
-                            !empty(
-                                $item->qr_code
-                            ) &&
-                            !$isExpired &&
-                            !$isFlagged;
-
-                        /*
-                        |--------------------------------------------------------------------------
-                        | ADD CALCULATED FIELDS
-                        |--------------------------------------------------------------------------
-                        */
-
-                        $item->is_flagged =
-                            $isFlagged;
-
-                        $item->is_expired =
-                            $isExpired;
-
-                        $item->is_active_qr =
-                            $isActiveQr;
-
-                        /*
-                        |--------------------------------------------------------------------------
-                        | REGISTRY STATUS
-                        |--------------------------------------------------------------------------
-                        */
-
-                        if ($isFlagged) {
-                            $item->registry_status =
-                                'Flagged';
-                        } elseif ($isExpired) {
-                            $item->registry_status =
-                                'Expired';
-                        } elseif ($isActiveQr) {
-                            $item->registry_status =
-                                'Active';
-                        } elseif (
-                            $item->status ===
-                            'pending'
-                        ) {
-                            $item->registry_status =
-                                'Pending';
-                        } else {
-                            $item->registry_status =
-                                ucfirst(
-                                    $item->status
-                                );
-                        }
-
-                        return $item;
+                    if ($isFlagged) {
+                        $item->registry_status =
+                            'Flagged';
+                    } elseif ($isExpired) {
+                        $item->registry_status =
+                            'Expired';
+                    } elseif ($isActiveQr) {
+                        $item->registry_status =
+                            'Active';
+                    } elseif ($item->status === 'pending') {
+                        $item->registry_status =
+                            'Pending';
+                    } else {
+                        $item->registry_status =
+                            ucfirst($item->status);
                     }
-                );
+
+                    return $item;
+                }
+            );
 
         return response()->json([
-            'items' =>
-                $items,
+            'items' => $items,
         ]);
     }
-
 
     /*
     |--------------------------------------------------------------------------
     | PCO - APPROVE ITEM AND GENERATE QR CODE
     |--------------------------------------------------------------------------
+    |
+    | This is the ONLY stage that assigns the QR/permit expiration. The number
+    | of validity months comes from the admin-controlled System Settings.
+    |
     */
-
     public function approve($id)
     {
-        /*
-        |--------------------------------------------------------------------------
-        | FIND ITEM
-        |--------------------------------------------------------------------------
-        */
-
-        $item =
-            RegisteredItem::findOrFail(
-                $id
-            );
-
-        /*
-        |--------------------------------------------------------------------------
-        | PREVENT DUPLICATE APPROVAL
-        |--------------------------------------------------------------------------
-        */
+        $item = RegisteredItem::findOrFail($id);
 
         if (
-            $item->status ===
-                'approved' &&
-            !empty(
-                $item->qr_code
-            )
+            $item->status === 'approved' &&
+            !empty($item->qr_code)
         ) {
             return response()->json([
                 'message' =>
@@ -488,39 +466,19 @@ class RegisteredItemController extends Controller
             ], 422);
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | GET QR VALIDITY FROM SYSTEM SETTINGS
-        |--------------------------------------------------------------------------
-        */
+        $settings = SystemSetting::first();
 
-        $settings =
-            SystemSetting::first();
-
-        $validityMonths =
-            max(
-                1,
-                (int) (
-                    $settings
-                        ?->qr_code_validity_months ??
-                    6
-                )
-            );
-
-        /*
-        |--------------------------------------------------------------------------
-        | APPROVE ITEM
-        |--------------------------------------------------------------------------
-        */
+        $validityMonths = max(
+            1,
+            (int) (
+                $settings
+                    ?->qr_code_validity_months ??
+                6
+            )
+        );
 
         $item->status =
             'approved';
-
-        /*
-        |--------------------------------------------------------------------------
-        | GENERATE QR CODE
-        |--------------------------------------------------------------------------
-        */
 
         $item->qr_code =
             'QRPASS-' .
@@ -531,31 +489,12 @@ class RegisteredItemController extends Controller
                 STR_PAD_LEFT
             );
 
-        /*
-        |--------------------------------------------------------------------------
-        | SET QR EXPIRATION USING SYSTEM POLICY
-        |--------------------------------------------------------------------------
-        |
-        | Example:
-        |
-        | QR validity = 6 months
-        | Approved    = August 27, 2026
-        | Expiration  = February 27, 2027
-        |
-        */
-
         $item->qr_expires_at =
             now()->addMonths(
                 $validityMonths
             );
 
         $item->save();
-
-        /*
-        |--------------------------------------------------------------------------
-        | NOTIFY ITEM OWNER
-        |--------------------------------------------------------------------------
-        */
 
         Notification::create([
             'user_id' =>
@@ -586,12 +525,6 @@ class RegisteredItemController extends Controller
             'read_at' =>
                 null,
         ]);
-
-        /*
-        |--------------------------------------------------------------------------
-        | AUDIT LOG - ITEM APPROVAL / QR ISSUANCE
-        |--------------------------------------------------------------------------
-        */
 
         AuditLogger::log(
             action:
@@ -646,12 +579,6 @@ class RegisteredItemController extends Controller
                 auth()->user()
         );
 
-        /*
-        |--------------------------------------------------------------------------
-        | RESPONSE
-        |--------------------------------------------------------------------------
-        */
-
         return response()->json([
             'message' =>
                 'Item approved successfully.',
@@ -667,13 +594,11 @@ class RegisteredItemController extends Controller
         ]);
     }
 
-
     /*
     |--------------------------------------------------------------------------
     | SECURITY - VERIFY ITEM USING QR CODE OR SERIAL NUMBER
     |--------------------------------------------------------------------------
     */
-
     public function verify(Request $request)
     {
         $request->validate([
@@ -681,31 +606,16 @@ class RegisteredItemController extends Controller
                 'required|string',
         ]);
 
-        /*
-        |--------------------------------------------------------------------------
-        | FIND ITEM
-        |--------------------------------------------------------------------------
-        */
-
-        $item =
-            RegisteredItem::with(
-                'user'
+        $item = RegisteredItem::with('user')
+            ->where(
+                'qr_code',
+                $request->code
             )
-                ->where(
-                    'qr_code',
-                    $request->code
-                )
-                ->orWhere(
-                    'serial_number',
-                    $request->code
-                )
-                ->first();
-
-        /*
-        |--------------------------------------------------------------------------
-        | ITEM NOT FOUND
-        |--------------------------------------------------------------------------
-        */
+            ->orWhere(
+                'serial_number',
+                $request->code
+            )
+            ->first();
 
         if (!$item) {
             return response()->json([
@@ -717,16 +627,7 @@ class RegisteredItemController extends Controller
             ], 404);
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | ITEM NOT APPROVED
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            $item->status !==
-            'approved'
-        ) {
+        if ($item->status !== 'approved') {
             return response()->json([
                 'message' =>
                     'Item is not approved.',
@@ -739,17 +640,7 @@ class RegisteredItemController extends Controller
             ], 403);
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | QR CODE NOT ISSUED
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            empty(
-                $item->qr_code
-            )
-        ) {
+        if (empty($item->qr_code)) {
             return response()->json([
                 'message' =>
                     'This item does not have an active QR code.',
@@ -761,12 +652,6 @@ class RegisteredItemController extends Controller
                     $item,
             ], 403);
         }
-
-        /*
-        |--------------------------------------------------------------------------
-        | ITEM EXPIRED
-        |--------------------------------------------------------------------------
-        */
 
         if (
             $item->qr_expires_at &&
@@ -786,22 +671,12 @@ class RegisteredItemController extends Controller
             ], 403);
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | CHECK ACTIVE SECURITY FLAG
-        |--------------------------------------------------------------------------
-        */
-
-        $isFlagged =
-            SecurityIncident::where(
-                'registered_item_id',
-                $item->id
-            )
-                ->where(
-                    'status',
-                    'Flagged'
-                )
-                ->exists();
+        $isFlagged = SecurityIncident::where(
+            'registered_item_id',
+            $item->id
+        )
+            ->where('status', 'Flagged')
+            ->exists();
 
         if ($isFlagged) {
             return response()->json([
@@ -815,12 +690,6 @@ class RegisteredItemController extends Controller
                     $item,
             ], 403);
         }
-
-        /*
-        |--------------------------------------------------------------------------
-        | VERIFIED
-        |--------------------------------------------------------------------------
-        */
 
         return response()->json([
             'message' =>

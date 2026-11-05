@@ -31,7 +31,6 @@ class LostFoundItemController extends Controller
             'items' => $items,
         ]);
     }
-
     /*
     |--------------------------------------------------------------------------
     | CREATE LOST OR FOUND REPORT
