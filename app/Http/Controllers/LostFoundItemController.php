@@ -656,6 +656,18 @@ if ($request->hasFile('photo')) {
 
         /*
         |--------------------------------------------------------------------------
+        | ONLY AVAILABLE FOUND ITEMS CAN RECEIVE A NEW CLAIM
+        |--------------------------------------------------------------------------
+        */
+
+        if (strtolower((string) $item->status) !== 'found') {
+            return response()->json([
+                'message' => 'This item is not currently available for a new claim.',
+            ], 422);
+        }
+
+        /*
+        |--------------------------------------------------------------------------
         | SAVE CLAIM
         |--------------------------------------------------------------------------
         */
@@ -666,8 +678,9 @@ if ($request->hasFile('photo')) {
         $item->claimed_at =
             now();
 
+        // A request alone never verifies ownership. CSU must confirm it.
         $item->status =
-            'Claimed';
+            'Pending';
 
         $item->save();
 
@@ -681,7 +694,7 @@ if ($request->hasFile('photo')) {
 
         return response()->json([
             'message' =>
-                'Claim submitted successfully. Please proceed to the Security office for ownership verification.',
+                'Claim request submitted. Status: Pending CSU Verification. Please visit the Security office with proof of ownership.',
 
             'item' => $item,
         ]);
@@ -735,14 +748,16 @@ if ($request->hasFile('photo')) {
         */
 
         if ($reportType === 'found') {
-            if (!$item->claimed_by) {
+            if (!$item->claimed_by || strtolower((string) $item->status) !== 'pending') {
                 return response()->json([
                     'message' =>
-                        'This found item does not have a pending claimant.',
+                        'This found item must have a pending claim before CSU can verify ownership.',
                 ], 422);
             }
 
-            $item->status = 'Recovered';
+            // CSU has checked ownership evidence at the office.
+            // Mark as Claimed ONLY after verification; do not auto-approve student requests.
+            $item->status = 'Claimed';
             $item->save();
 
             $item->load([
@@ -755,7 +770,7 @@ if ($request->hasFile('photo')) {
 
             return response()->json([
                 'message' =>
-                    'Ownership verified. The found item has been returned to its rightful owner.',
+                    'CSU verified ownership. Item status is now Claimed; release confirmed.',
                 'item' => $item,
             ]);
         }

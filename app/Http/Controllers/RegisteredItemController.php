@@ -100,6 +100,9 @@ class RegisteredItemController extends Controller
 
             'purpose' =>
                 'nullable|string|max:255',
+
+            'quantity' => 'nullable|integer|min:1',
+            'complete_description' => 'nullable|string|max:10000',
         ]);
 
         $item = RegisteredItem::create([
@@ -123,6 +126,9 @@ class RegisteredItemController extends Controller
 
             'purpose' =>
                 $request->purpose,
+
+            'quantity' => $request->input('quantity', 1),
+            'complete_description' => $request->input('complete_description'),
 
             'status' =>
                 'pending',
