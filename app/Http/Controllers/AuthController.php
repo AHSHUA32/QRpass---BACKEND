@@ -882,16 +882,25 @@ class AuthController extends Controller
     ) {
         $request->validate([
             'name' =>
-                'required|string|max:255',
+                'required|string|max:255|not_regex:/[0-9]/',
 
             'email' =>
                 'required|email|unique:users,email',
 
             'username' =>
-                'required|string|max:255|unique:users,username',
+                'required|digits_between:1,20|unique:users,username',
 
             'role' =>
-                'required|in:student,security,pco',
+                'required|in:student',
+
+            'college' =>
+                'nullable|required_unless:year_level,Senior High School|string|in:College of Allied Engineering,College of Arts and Sciences,College of Business and Accountancy,College of Computer Studies,College of Criminal Justice,College of Customs Administration,College of Hospitality Management,College of Nursing,College of Social Work,College of Teacher Education',
+
+            'year_level' =>
+                'required|string|in:Senior High School,1st Year,2nd Year,3rd Year,4th Year',
+
+            'contact_number' =>
+                'nullable|string|max:20|regex:/^[0-9]+$/',
 
             'password' =>
                 'required|string|min:6',
@@ -913,7 +922,16 @@ class AuthController extends Controller
                     $request->username,
 
                 'role' =>
-                    $request->role,
+                    'student',
+
+                'college' =>
+                    $request->year_level === 'Senior High School' ? null : $request->college,
+
+                'year_level' =>
+                    $request->year_level,
+
+                'contact_number' =>
+                    $request->contact_number,
 
                 'status' =>
                     'approved',
