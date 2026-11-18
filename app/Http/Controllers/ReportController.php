@@ -319,12 +319,43 @@ class ReportController extends Controller
                 )
                 ->get();
 
-        return response()->json([
-            'logs' =>
-                $logs,
+        // CSU may inspect approved items for gate verification.
+        // Do not disclose pending or rejected item-level applications.
+        $registeredItems = RegisteredItem::with([
+            'user:id,name,username',
+        ])
+            ->where('status', 'approved')
+            ->orderByDesc('created_at')
+            ->get([
+                'id', 'user_id', 'item_name', 'item_type',
+                'brand_model', 'serial_number', 'color',
+                'qr_code', 'qr_expires_at', 'created_at', 'status',
+            ]);
 
-            'incidents' =>
-                $incidents,
+        // The summary contains counts only (no pending-owner details).
+        // Match the verification rule: an approved item with an open
+        // security incident must not appear as an active gate QR code.
+        $flaggedIds = SecurityIncident::where('status', 'Flagged')
+            ->whereNotNull('registered_item_id')
+            ->pluck('registered_item_id')
+            ->unique();
+
+        $registeredItems->each(function ($item) use ($flaggedIds) {
+            $item->is_flagged = $flaggedIds->contains($item->id);
+        });
+
+        $monthlyRegistrationSummary = RegisteredItem::query()
+            ->select('status', DB::raw('COUNT(*) AS total'))
+            ->whereYear('created_at', now()->year)
+            ->whereMonth('created_at', now()->month)
+            ->groupBy('status')
+            ->get();
+
+        return response()->json([
+            'logs' => $logs,
+            'incidents' => $incidents,
+            'registered_items' => $registeredItems,
+            'monthly_registration_summary' => $monthlyRegistrationSummary,
         ]);
     }
 }

@@ -258,6 +258,16 @@ class SystemRecordController extends Controller
             ],
 
             'records' => $records,
+
+            // Read-only administrative oversight for Lost Reports and Claim Management.
+            // Claim approval/recovery mutations remain restricted to CSU routes.
+            'lost_found_items' => LostFoundItem::with([
+                'reporter:id,name,username,role',
+                'finder:id,name,username,role',
+                'lostBy:id,name,username,role',
+                'processor:id,name,username,role',
+                'claimant:id,name,username,role',
+            ])->orderByDesc('created_at')->get(),
         ]);
     }
 }
