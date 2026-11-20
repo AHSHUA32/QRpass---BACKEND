@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\QrpassPageManageController;
 use Illuminate\Support\Facades\Route;
 
 use App\Http\Controllers\PerformanceController;
@@ -609,6 +610,12 @@ Route::middleware([
     )->group(function () {
 
 
+        
+        // QRPass page-specific manage: protected by existing sysadmin role middleware.
+        Route::get('/sysadmin/page-manage/{module}', [QrpassPageManageController::class, 'index']);
+        Route::post('/sysadmin/page-manage/{module}', [QrpassPageManageController::class, 'action']);
+        Route::get('/sysadmin/page-manage/{module}/export', [QrpassPageManageController::class, 'export']);
+
         /*
         |--------------------------------------------------------------------------
         | Overview Dashboard
@@ -847,3 +854,6 @@ Route::middleware([
         );
     });
 });
+
+// QRPass Manage Logs functional v1
+require __DIR__ . "/qrpass_log_management.php";
