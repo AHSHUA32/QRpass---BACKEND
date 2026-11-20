@@ -1327,169 +1327,81 @@ class AuthController extends Controller
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
-
-    <title>
-        QRPass Login Verification
-    </title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QRpass - Login Verification</title>
 </head>
+<body style="margin:0;padding:0;background:#f4f7fc;font-family:Arial,Helvetica,sans-serif;color:#172b4d;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f4f7fc;">
+<tr><td align="center" style="padding:36px 16px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:540px;background:#ffffff;border:1px solid #dce5f3;border-radius:18px;overflow:hidden;">
 
-<body
-    style="
-        margin:0;
-        padding:0;
-        background:#f4f6fa;
-        font-family:Arial, Helvetica, sans-serif;
-        color:#1f2937;
-    "
->
+<tr>
+<td align="center" style="background:#173b7a;padding:26px 20px;">
+<img src="QRpass_LOGO_SRC" alt="QRpass Shield" width="65" height="65" style="display:block;width:65px;height:65px;object-fit:contain;background:#ffffff;border-radius:12px;padding:7px;box-sizing:border-box;">
+<div style="margin-top:13px;font-size:27px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;">
+QRpass
+</div>
+</td>
+</tr>
 
-<table
-    width="100%"
-    cellpadding="0"
-    cellspacing="0"
-    border="0"
-    style="
-        background:#f4f6fa;
-        padding:40px 15px;
-    "
->
-    <tr>
-        <td align="center">
+<tr>
+<td style="padding:30px 28px;">
+<h2 style="font-size:21px;line-height:1.35;margin:0 0 20px;color:#17336d;">
+Login Verification
+</h2>
 
-            <table
-                width="100%"
-                cellpadding="0"
-                cellspacing="0"
-                border="0"
-                style="
-                    max-width:560px;
-                    background:#ffffff;
-                    border-radius:12px;
-                    overflow:hidden;
-                    border:1px solid #e5e7eb;
-                    box-shadow:0 4px 14px rgba(0,0,0,0.06);
-                "
-            >
+<p style="font-size:14px;line-height:1.7;color:#334155;">
+Hello <strong>{$safeName}</strong>,
+</p>
 
-                <tr>
-                    <td
-                        align="center"
-                        style="
-                            background:#003087;
-                            padding:28px 30px;
-                        "
-                    >
-                        <div
-                            style="
-                                font-size:26px;
-                                font-weight:800;
-                                letter-spacing:3px;
-                                color:#ffffff;
-                            "
-                        >
-                            QRPASS
-                        </div>
+<p style="font-size:14px;line-height:1.8;color:#475569;">
+A sign-in request was made for your QRpass account. Enter the verification code below to complete your login.
+</p>
 
-                        <div
-                            style="
-                                margin-top:6px;
-                                font-size:12px;
-                                color:#dbeafe;
-                                letter-spacing:1px;
-                            "
-                        >
-                            UNIVERSITY OF CEBU – MAIN CAMPUS
-                        </div>
-                    </td>
-                </tr>
+<div style="margin:24px 0;padding:22px 12px;text-align:center;background:#edf2ff;border:1px solid #c7d5fb;border-radius:12px;">
+<div style="font-size:11px;font-weight:700;letter-spacing:1px;color:#64748b;">
+YOUR VERIFICATION CODE
+</div>
+<div style="margin-top:10px;font-size:34px;font-weight:800;letter-spacing:6px;color:#173b7a;line-height:1.3;">
+{$code}
+</div>
+</div>
 
-                <tr>
-                    <td
-                        style="
-                            padding:36px;
-                        "
-                    >
-                        <h2
-                            style="
-                                margin-top:0;
-                                color:#0d1b3e;
-                            "
-                        >
-                            Login Verification
-                        </h2>
+<p style="font-size:13px;line-height:1.7;color:#64748b;">
+This verification code expires in <strong>10 minutes</strong>.
+</p>
 
-                        <p>
-                            Hello <strong>{$safeName}</strong>,
-                        </p>
+<div style="margin-top:22px;padding-top:17px;border-top:1px solid #e2e8f0;">
+<p style="font-size:12px;line-height:1.7;color:#64748b;margin:0;">
+If you did not attempt to log in, you can safely ignore this email.
+</p>
+</div>
 
-                        <p
-                            style="
-                                color:#4b5563;
-                                line-height:1.7;
-                            "
-                        >
-                            A login attempt was made using your QRPass account.
-                            Enter the verification code below to complete your login.
-                        </p>
-
-                        <div
-                            style="
-                                margin:24px 0;
-                                padding:24px;
-                                text-align:center;
-                                font-size:36px;
-                                font-weight:800;
-                                letter-spacing:8px;
-                                color:#003087;
-                                background:#f0f5ff;
-                                border:1px solid #cbd9f4;
-                                border-radius:10px;
-                            "
-                        >
-                            {$code}
-                        </div>
-
-                        <p
-                            style="
-                                color:#64748b;
-                                font-size:13px;
-                            "
-                        >
-                            This verification code expires in 10 minutes.
-                        </p>
-
-                        <p
-                            style="
-                                color:#64748b;
-                                font-size:13px;
-                            "
-                        >
-                            If you did not attempt to log in, you can safely ignore this email.
-                        </p>
-                    </td>
-                </tr>
-
-            </table>
-
-        </td>
-    </tr>
+</td>
+</tr>
 </table>
 
+<p style="font-size:11px;color:#94a3b8;margin-top:20px;">
+Automated security email from QRpass
+</p>
+
+</td></tr>
+</table>
 </body>
 </html>
 HTML;
 
         Mail::html(
             $html,
-            function ($message) use (
-                $user
-            ) {
+            function ($message) use ($user, $html) {
+                $logoCid = $message->embed(
+                    public_path('email/qrpass-shield-only.png')
+                );
+
+                $message->getSymfonyMessage()->html(
+                    str_replace('QRpass_LOGO_SRC', $logoCid, $html)
+                );
                 $message
                     ->to(
                         $user->email
@@ -1527,170 +1439,81 @@ HTML;
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
-
-    <title>
-        QRPass Password Reset
-    </title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QRpass - Password Reset Verification</title>
 </head>
+<body style="margin:0;padding:0;background:#f4f7fc;font-family:Arial,Helvetica,sans-serif;color:#172b4d;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f4f7fc;">
+<tr><td align="center" style="padding:36px 16px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:540px;background:#ffffff;border:1px solid #dce5f3;border-radius:18px;overflow:hidden;">
 
-<body
-    style="
-        margin:0;
-        padding:0;
-        background:#f4f6fa;
-        font-family:Arial, Helvetica, sans-serif;
-        color:#1f2937;
-    "
->
+<tr>
+<td align="center" style="background:#173b7a;padding:26px 20px;">
+<img src="QRpass_LOGO_SRC" alt="QRpass Shield" width="65" height="65" style="display:block;width:65px;height:65px;object-fit:contain;background:#ffffff;border-radius:12px;padding:7px;box-sizing:border-box;">
+<div style="margin-top:13px;font-size:27px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;">
+QRpass
+</div>
+</td>
+</tr>
 
-<table
-    width="100%"
-    cellpadding="0"
-    cellspacing="0"
-    border="0"
-    style="
-        background:#f4f6fa;
-        padding:40px 15px;
-    "
->
-    <tr>
-        <td align="center">
+<tr>
+<td style="padding:30px 28px;">
+<h2 style="font-size:21px;line-height:1.35;margin:0 0 20px;color:#17336d;">
+Password Reset Verification
+</h2>
 
-            <table
-                width="100%"
-                cellpadding="0"
-                cellspacing="0"
-                border="0"
-                style="
-                    max-width:560px;
-                    background:#ffffff;
-                    border-radius:12px;
-                    overflow:hidden;
-                    border:1px solid #e5e7eb;
-                    box-shadow:0 4px 14px rgba(0,0,0,0.06);
-                "
-            >
+<p style="font-size:14px;line-height:1.7;color:#334155;">
+Hello <strong>{$safeName}</strong>,
+</p>
 
-                <tr>
-                    <td
-                        align="center"
-                        style="
-                            background:#003087;
-                            padding:28px 30px;
-                        "
-                    >
-                        <div
-                            style="
-                                font-size:26px;
-                                font-weight:800;
-                                letter-spacing:3px;
-                                color:#ffffff;
-                            "
-                        >
-                            QRPASS
-                        </div>
+<p style="font-size:14px;line-height:1.8;color:#475569;">
+We received a request to reset your QRpass account password. Enter the verification code below to continue.
+</p>
 
-                        <div
-                            style="
-                                margin-top:6px;
-                                font-size:12px;
-                                color:#dbeafe;
-                                letter-spacing:1px;
-                            "
-                        >
-                            UNIVERSITY OF CEBU – MAIN CAMPUS
-                        </div>
-                    </td>
-                </tr>
+<div style="margin:24px 0;padding:22px 12px;text-align:center;background:#edf2ff;border:1px solid #c7d5fb;border-radius:12px;">
+<div style="font-size:11px;font-weight:700;letter-spacing:1px;color:#64748b;">
+YOUR VERIFICATION CODE
+</div>
+<div style="margin-top:10px;font-size:34px;font-weight:800;letter-spacing:6px;color:#173b7a;line-height:1.3;">
+{$code}
+</div>
+</div>
 
-                <tr>
-                    <td
-                        style="
-                            padding:36px;
-                        "
-                    >
-                        <h2
-                            style="
-                                margin-top:0;
-                                color:#0d1b3e;
-                            "
-                        >
-                            Password Reset Verification
-                        </h2>
+<p style="font-size:13px;line-height:1.7;color:#64748b;">
+This verification code expires in <strong>10 minutes</strong>.
+</p>
 
-                        <p>
-                            Hello <strong>{$safeName}</strong>,
-                        </p>
+<div style="margin-top:22px;padding-top:17px;border-top:1px solid #e2e8f0;">
+<p style="font-size:12px;line-height:1.7;color:#64748b;margin:0;">
+If you did not request a password reset, your password will remain unchanged.
+</p>
+</div>
 
-                        <p
-                            style="
-                                color:#4b5563;
-                                line-height:1.7;
-                            "
-                        >
-                            We received a request to reset the password for your
-                            QRPass account. Use the verification code below to continue.
-                        </p>
-
-                        <div
-                            style="
-                                margin:24px 0;
-                                padding:24px;
-                                text-align:center;
-                                font-size:36px;
-                                font-weight:800;
-                                letter-spacing:8px;
-                                color:#003087;
-                                background:#f0f5ff;
-                                border:1px solid #cbd9f4;
-                                border-radius:10px;
-                            "
-                        >
-                            {$code}
-                        </div>
-
-                        <p
-                            style="
-                                color:#64748b;
-                                font-size:13px;
-                            "
-                        >
-                            This verification code expires in 10 minutes.
-                        </p>
-
-                        <p
-                            style="
-                                color:#64748b;
-                                font-size:13px;
-                            "
-                        >
-                            If you did not request a password reset,
-                            your password will remain unchanged.
-                        </p>
-                    </td>
-                </tr>
-
-            </table>
-
-        </td>
-    </tr>
+</td>
+</tr>
 </table>
 
+<p style="font-size:11px;color:#94a3b8;margin-top:20px;">
+Automated security email from QRpass
+</p>
+
+</td></tr>
+</table>
 </body>
 </html>
 HTML;
 
         Mail::html(
             $html,
-            function ($message) use (
-                $user
-            ) {
+            function ($message) use ($user, $html) {
+                $logoCid = $message->embed(
+                    public_path('email/qrpass-shield-only.png')
+                );
+
+                $message->getSymfonyMessage()->html(
+                    str_replace('QRpass_LOGO_SRC', $logoCid, $html)
+                );
                 $message
                     ->to(
                         $user->email

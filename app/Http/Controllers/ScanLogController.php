@@ -14,7 +14,7 @@ class ScanLogController extends Controller
     {
         $request->validate([
             'registered_item_id' => 'required|exists:registered_items,id',
-            'gate' => 'required|string|max:100',
+            'gate' => 'required|in:Gate 2,Gate 3,Gate 4',
             'direction' => 'required|in:IN,OUT',
         ]);
 

@@ -57,11 +57,23 @@ class SecurityIncidentController extends Controller
                 'nullable|in:IN,OUT',
 
             'gate' =>
-                'required|string|max:100',
+                'required|in:Gate 2,Gate 3,Gate 4',
 
             'description' =>
                 'nullable|string|max:1000',
         ]);
+
+        // Student-only validation for flagged items.
+        if (in_array($request->input('incident_type'), ['Unregistered Item', 'Unapproved Item'], true)) {
+            $request->validate([
+                'item_name' => ['required', 'string', 'max:255', 'regex:/^[\p{L} ]+$/u'],
+                'owner_name' => ['required', 'string', 'max:255', 'regex:/^[\p{L} ]+$/u'],
+                'owner_id_number' => ['required', 'string', 'max:100', 'regex:/^[0-9]+$/'],
+                'carrier_name' => ['required', 'string', 'max:255', 'regex:/^[\p{L} ]+$/u'],
+                'carrier_id_number' => ['required', 'string', 'max:100', 'regex:/^[0-9]+$/'],
+                'direction' => ['required', 'in:IN,OUT'],
+            ]);
+        }
 
         $incident = SecurityIncident::create([
             'reported_by' =>
