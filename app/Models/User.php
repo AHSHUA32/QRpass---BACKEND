@@ -9,6 +9,13 @@ use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
+    protected static function booted(): void
+    {
+        static::addGlobalScope('qrpass-not-archived', function ($builder) {
+            $builder->whereNull($builder->getModel()->getTable() . '.qrpass_archived_at');
+        });
+    }
+
     use HasApiTokens, HasFactory, Notifiable;
 
     protected $fillable = [

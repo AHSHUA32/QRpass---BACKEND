@@ -8,6 +8,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class LostFoundItem extends Model
 {
+    protected static function booted(): void
+    {
+        static::addGlobalScope('qrpass-not-archived', function ($builder) {
+            $builder->whereNull($builder->getModel()->getTable() . '.qrpass_archived_at');
+        });
+    }
+
     use HasFactory;
 
     protected $fillable = [

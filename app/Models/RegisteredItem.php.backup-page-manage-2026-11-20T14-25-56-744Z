@@ -1,0 +1,41 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class RegisteredItem extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'user_id',
+        'item_name',
+        'brand_model',
+        'serial_number',
+        'color',
+        'item_type',
+        'purpose',
+        'quantity',
+        'complete_description',
+        'status',
+        'qr_code',
+        'approved_at',
+        'qr_expires_at',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'quantity' => 'integer',
+            'approved_at' => 'datetime',
+            'qr_expires_at' => 'datetime',
+        ];
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+}
