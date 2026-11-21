@@ -767,6 +767,10 @@ Route::middleware([
             'permission:manage_users'
         );
 
+        // QRPASS_PERMANENT_REVOKE_V34
+        Route::delete('/users/{id}/permanent', [UserController::class, 'permanentRevoke'])
+            ->middleware('permission:manage_users');
+
         Route::put(
             '/users/{id}/status',
             [

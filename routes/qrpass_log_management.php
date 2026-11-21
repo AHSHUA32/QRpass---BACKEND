@@ -266,3 +266,47 @@ Route::middleware('auth:sanctum')->prefix('sysadmin/manage-audit-logs')->group(f
     require __DIR__ . '/qrpass_archive_exports.php';
 
 });
+
+// QRPASS_SYSTEMLOGS_SELECT_IDS_V22
+// Selected audit log archiving: exactly the IDs explicitly checked in the Sysadmin UI.
+Route::middleware('auth:sanctum')->prefix('sysadmin/manage-audit-logs')->group(function () use ($qrpassGuard) {
+    Route::post('/archive-ids', function (Request $request) use ($qrpassGuard) {
+        $user = $qrpassGuard($request);
+        $validated = $request->validate([
+            'ids' => 'required|array|min:1|max:500',
+            'ids.*' => 'required|integer|min:1|distinct',
+        ]);
+        $ids = array_values(array_unique(array_map('intval', $validated['ids'])));
+        $disk = Storage::disk('local');
+        $archiveId = (string) Str::uuid();
+        $file = "qrpass-log-archives/{$archiveId}.json";
+        $manifestFile = "qrpass-log-archives/{$archiveId}.manifest.json";
+        // Lock the selected rows until an independently verified archive copy exists.
+        return DB::transaction(function () use ($ids, $disk, $archiveId, $file, $manifestFile, $user) {
+            $rows = DB::table('audit_logs')->whereIn('id', $ids)->orderBy('id')->lockForUpdate()->get();
+            if ($rows->count() !== count($ids)) abort(409, 'Some selected logs are no longer available. Refresh the list.');
+            $payload = [
+                'archive_id' => $archiveId,
+                'created_at' => now()->toIso8601String(),
+                'archived_by' => $user->id,
+                'records' => $rows->toArray(),
+            ];
+            $json = json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+            if (!$disk->put($file, $json)) abort(500, 'Archive could not be written. No logs deleted.');
+            if (!hash_equals(hash('sha256', $json), hash('sha256', $disk->get($file)))) abort(500, 'Archive verification failed. No logs deleted.');
+            $manifest = [
+                'archive_id' => $archiveId,
+                'count' => count($ids),
+                'sha256' => hash('sha256', $json),
+                'created_by' => $user->id,
+                'created_at' => now()->toIso8601String(),
+                'moved' => true,
+                'deleted' => false,
+            ];
+            if (!$disk->put($manifestFile, json_encode($manifest, JSON_THROW_ON_ERROR))) abort(500, 'Manifest could not be saved. No logs deleted.');
+            $deleted = DB::table('audit_logs')->whereIn('id', $ids)->delete();
+            if ($deleted !== count($ids)) abort(409, 'Archive not completed. Selected log count changed.');
+            return response()->json(['archive_id' => $archiveId, 'count' => $deleted, 'message' => $deleted . ' logs archived.']);
+        });
+    });
+});

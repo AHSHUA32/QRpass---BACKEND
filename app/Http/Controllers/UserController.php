@@ -474,4 +474,54 @@ class UserController extends Controller
                 $user,
         ]);
     }
+    // QRPASS_PERMANENT_REVOKE_V34
+    // Delete user and tokens as a single transaction. FK restrictions protect dependent records.
+    public function permanentRevoke(Request $request, $id)
+    {
+        $actor = $request->user();
+        $target = User::findOrFail($id);
+        if ((int) $actor->id === (int) $target->id) {
+            return response()->json(['message' => 'You cannot permanently delete your own administrator account.'], 422);
+        }
+        if ($target->role === 'sysadmin' && User::where('role', 'sysadmin')->count() <= 1) {
+            return response()->json(['message' => 'Cannot delete the last system administrator.'], 422);
+        }
+        try {
+            \Illuminate\Support\Facades\DB::transaction(function () use ($actor, $target) {
+                // Prevent accidental cascade-deletion of permits, items and audit history.
+                // All MySQL foreign keys referencing users must be clear first.
+                if (\Illuminate\Support\Facades\DB::getDriverName() === 'mysql') {
+                    $references = \Illuminate\Support\Facades\DB::select(
+                        "SELECT TABLE_NAME AS table_name, COLUMN_NAME AS column_name FROM information_schema.KEY_COLUMN_USAGE WHERE REFERENCED_TABLE_SCHEMA = DATABASE() AND REFERENCED_TABLE_NAME = 'users'"
+                    );
+                    foreach ($references as $reference) {
+                        $table = (string) $reference->table_name;
+                        $column = (string) $reference->column_name;
+                        if ($table === 'personal_access_tokens') continue;
+                        if (\Illuminate\Support\Facades\DB::table($table)->where($column, $target->id)->exists()) {
+                            throw new \DomainException('Related records prevent permanent deletion.');
+                        }
+                    }
+                }
+                AuditLogger::log(
+                    action: 'permanent_revoke_user',
+                    description: $actor->name . ' permanently deleted user account "' . $target->name . '".',
+                    eventType: 'delete', module: 'User Management', status: 'success',
+                    metadata: ['target_user_id' => $target->id, 'username' => $target->username, 'role' => $target->role],
+                    user: $actor
+                );
+                $target->tokens()->delete();
+                $target->forceDelete();
+            });
+        } catch (\DomainException $e) {
+            return response()->json(['message' => 'Account has related records. Nothing was deleted. Preserve or reassign those records before permanent deletion.'], 409);
+        } catch (\Illuminate\Database\QueryException $e) {
+            \Illuminate\Support\Facades\Log::warning('QRPass user deletion blocked', ['user_id' => $id, 'error' => $e->getMessage()]);
+            return response()->json(['message' => 'Account has related records protected by database constraints. Nothing was deleted. Resolve dependencies first.'], 409);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('QRPass user deletion failed', ['user_id' => $id, 'error' => $e->getMessage()]);
+            return response()->json(['message' => 'Permanent deletion failed; no changes committed.'], 500);
+        }
+        return response()->json(['message' => 'Account permanently deleted and all login tokens revoked.']);
+    }
 }
