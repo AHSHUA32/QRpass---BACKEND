@@ -9,6 +9,8 @@ use App\Models\SystemSetting;
 use App\Models\User;
 use App\Services\AuditLogger;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 class RegisteredItemController extends Controller
 {
@@ -367,6 +369,8 @@ class RegisteredItemController extends Controller
     {
         $items = RegisteredItem::with('user')
             ->where('status', 'pending')
+            ->when(Schema::hasColumn('registered_items', OperationalLogController::ARCHIVED_AT),
+                fn ($query) => $query->whereNull(OperationalLogController::ARCHIVED_AT))
             ->latest()
             ->get();
 
@@ -380,7 +384,7 @@ class RegisteredItemController extends Controller
     | PCO / SYSTEM ADMIN - VIEW ITEM REGISTRY
     |--------------------------------------------------------------------------
     */
-    public function allItems()
+    public function allItems(Request $request)
     {
         $flaggedItemIds = SecurityIncident::where(
             'status',
@@ -391,6 +395,8 @@ class RegisteredItemController extends Controller
             ->unique();
 
         $items = RegisteredItem::with('user')
+            ->when($request->user()->role === 'pco' && Schema::hasColumn('registered_items', OperationalLogController::ARCHIVED_AT),
+                fn ($query) => $query->whereNull(OperationalLogController::ARCHIVED_AT))
             ->latest()
             ->get()
             ->map(
@@ -455,9 +461,19 @@ class RegisteredItemController extends Controller
     | of validity months comes from the admin-controlled System Settings.
     |
     */
-    public function approve($id)
+    public function approve(Request $request, $id)
     {
-        $item = RegisteredItem::findOrFail($id);
+        $approver = $request->user();
+        abort_unless($approver && $approver->role === 'pco', 403);
+
+        return DB::transaction(fn () => $this->approveItem($id, $approver));
+    }
+
+    private function approveItem($id, User $approver)
+    {
+        $item = RegisteredItem::lockForUpdate()->findOrFail($id);
+        abort_if($item->getAttribute(OperationalLogController::ARCHIVED_AT) !== null, 409,
+            'Restore this registration request before approving it.');
 
         if (
             $item->status === 'approved' &&
@@ -483,6 +499,17 @@ class RegisteredItemController extends Controller
             )
         );
 
+        $approvedAt = now();
+
+        if ($item->status !== 'approved') {
+            if ($item->approved_by === null && $item->approved_by_name === null) {
+                $item->approved_by = $approver->id;
+                $item->approved_by_name = $approver->name;
+            }
+
+            $item->approved_at ??= $approvedAt;
+        }
+
         $item->status =
             'approved';
 
@@ -496,7 +523,7 @@ class RegisteredItemController extends Controller
             );
 
         $item->qr_expires_at =
-            now()->addMonths(
+            $approvedAt->copy()->addMonths(
                 $validityMonths
             );
 
@@ -582,7 +609,7 @@ class RegisteredItemController extends Controller
             ],
 
             user:
-                auth()->user()
+                $approver
         );
 
         return response()->json([

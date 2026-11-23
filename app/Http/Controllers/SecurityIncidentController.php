@@ -5,16 +5,23 @@ namespace App\Http\Controllers;
 use App\Models\SecurityIncident;
 use App\Services\AuditLogger;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 
 class SecurityIncidentController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         $incidents = SecurityIncident::with([
             'reporter',
             'resolver',
             'item.user',
         ])
+            ->when($request->user()->role === 'security', function ($query) {
+                $query->whereHas('reporter', fn ($reporter) => $reporter->where('role', 'security'));
+                if (Schema::hasColumn('security_incidents', OperationalLogController::ARCHIVED_AT)) {
+                    $query->whereNull(OperationalLogController::ARCHIVED_AT);
+                }
+            })
             ->latest('reported_at')
             ->get();
 

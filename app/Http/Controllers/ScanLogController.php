@@ -6,6 +6,7 @@ use App\Services\AuditLogger;
 use App\Models\RegisteredItem;
 use App\Models\ScanLog;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 
 class ScanLogController extends Controller
 {
@@ -78,12 +79,18 @@ class ScanLogController extends Controller
     }
 
     // Security - view scan logs
-    public function index()
+    public function index(Request $request)
     {
         $logs = ScanLog::with([
             'item.user',
             'scanner',
         ])
+            ->when($request->user()->role === 'security', function ($query) {
+                $query->whereHas('scanner', fn ($scanner) => $scanner->where('role', 'security'));
+                if (Schema::hasColumn('scan_logs', OperationalLogController::ARCHIVED_AT)) {
+                    $query->whereNull(OperationalLogController::ARCHIVED_AT);
+                }
+            })
             ->latest('scanned_at')
             ->get();
 

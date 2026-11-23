@@ -251,6 +251,13 @@ class UserController extends Controller
                     ),
                 ],
 
+                'contact_number' => [
+                    'sometimes',
+                    'nullable',
+                    'string',
+                    'regex:/\A09[0-9]{9}\z/',
+                ],
+
                 'username' => [
                     'required',
                     'string',
@@ -269,6 +276,9 @@ class UserController extends Controller
                     'required',
                     'in:student,security,pco,sysadmin',
                 ],
+            ], [
+                'contact_number.string' => 'Enter an 11-digit mobile number in 09XXXXXXXXX format.',
+                'contact_number.regex' => 'Enter an 11-digit mobile number in 09XXXXXXXXX format.',
             ]);
 
 
@@ -360,6 +370,10 @@ class UserController extends Controller
 
         $user->email =
             $validated['email'];
+
+        if (array_key_exists('contact_number', $validated)) {
+            $user->contact_number = $validated['contact_number'];
+        }
 
         $user->username =
             $validated['username'];

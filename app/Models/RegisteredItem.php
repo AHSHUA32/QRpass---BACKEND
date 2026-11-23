@@ -16,6 +16,10 @@ class RegisteredItem extends Model
 
     use HasFactory;
 
+    protected $hidden = [
+        'approved_by',
+    ];
+
     protected $fillable = [
         'user_id',
         'item_name',

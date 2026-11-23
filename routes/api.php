@@ -784,4 +784,16 @@ Route::middleware([
 });
 
 // QRPass Manage Logs functional v1
+foreach ([
+    'scans' => ['role:security', 'permission:scan_verify'],
+    'resolved-incidents' => ['role:security', 'permission:scan_verify'],
+    'requests' => ['role:pco', 'permission:approve_requests'],
+    'items' => ['role:pco'],
+] as $module => $middleware) {
+    Route::middleware(['auth:sanctum', ...$middleware])->prefix('operational-logs')->group(function () use ($module) {
+        Route::get($module, [\App\Http\Controllers\OperationalLogController::class, 'index'])->defaults('module', $module);
+        Route::post($module, [\App\Http\Controllers\OperationalLogController::class, 'action'])->defaults('module', $module);
+    });
+}
+
 require __DIR__ . "/qrpass_log_management.php";
