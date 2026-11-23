@@ -14,7 +14,7 @@ class QrpassPageManageController extends Controller
     private const MODULES = [
         'items' => 'registered_items',
         'lost-found' => 'lost_found_items',
-        'announcements' => 'announcements',
+
         'users' => 'users',
     ];
 

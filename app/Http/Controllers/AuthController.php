@@ -321,6 +321,11 @@ class AuthController extends Controller
         | ACCOUNT STATUS
         |--------------------------------------------------------------------------
         */
+        // QRPASS_PERMANENT_ACCESS_V91
+        if ($user->qrpass_revoked_at !== null) {
+            return response()->json(['message' => 'This account has been permanently revoked. Contact the System Administrator.'], 403);
+        }
+
 
         if (
             strtolower(
@@ -608,6 +613,11 @@ class AuthController extends Controller
         | ACCOUNT MUST STILL BE ACTIVE
         |--------------------------------------------------------------------------
         */
+        // QRPASS_PERMANENT_ACCESS_V91
+        if ($user->qrpass_revoked_at !== null) {
+            return response()->json(['message' => 'This account has been permanently revoked. Contact the System Administrator.'], 403);
+        }
+
 
         if (
             strtolower(

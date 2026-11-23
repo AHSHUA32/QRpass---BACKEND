@@ -15,11 +15,11 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\SystemRecordController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\QrpassAccessRevocationController; // QRPASS_PERMANENT_ACCESS_V91
 use App\Http\Controllers\SystemSettingController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\ActiveSessionController;
 use App\Http\Controllers\RolePermissionController;
-use App\Http\Controllers\AnnouncementController;
 
 /*
 |--------------------------------------------------------------------------
@@ -181,29 +181,6 @@ Route::middleware([
         [
             AuthController::class,
             'logout',
-        ]
-    );
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | ACTIVE ANNOUNCEMENTS - ALL AUTHENTICATED USERS
-    |--------------------------------------------------------------------------
-    */
-
-    Route::get(
-        '/announcements',
-        [
-            AnnouncementController::class,
-            'index',
-        ]
-    );
-
-    Route::put(
-        '/announcements/{id}/view',
-        [
-            AnnouncementController::class,
-            'markViewed',
         ]
     );
 
@@ -633,53 +610,6 @@ Route::middleware([
 
         /*
         |--------------------------------------------------------------------------
-        | Announcement Management
-        |--------------------------------------------------------------------------
-        */
-
-        Route::get(
-            '/announcements/manage',
-            [
-                AnnouncementController::class,
-                'adminIndex',
-            ]
-        );
-
-        Route::post(
-            '/announcements',
-            [
-                AnnouncementController::class,
-                'store',
-            ]
-        );
-
-        Route::put(
-            '/announcements/{id}',
-            [
-                AnnouncementController::class,
-                'update',
-            ]
-        );
-
-        Route::put(
-            '/announcements/{id}/publish',
-            [
-                AnnouncementController::class,
-                'setPublished',
-            ]
-        );
-
-        Route::delete(
-            '/announcements/{id}',
-            [
-                AnnouncementController::class,
-                'destroy',
-            ]
-        );
-
-
-        /*
-        |--------------------------------------------------------------------------
         | System Settings
         |--------------------------------------------------------------------------
         */
@@ -768,16 +698,10 @@ Route::middleware([
         );
 
         // QRPASS_PERMANENT_REVOKE_V34
-        Route::delete('/users/{id}/permanent', [UserController::class, 'permanentRevoke'])
+        Route::put('/users/{id}/revoke', [QrpassAccessRevocationController::class, 'revoke'])
             ->middleware('permission:manage_users');
 
-        Route::put(
-            '/users/{id}/status',
-            [
-                UserController::class,
-                'updateStatus',
-            ]
-        )->middleware(
+        Route::put('/users/{id}/status', [QrpassAccessRevocationController::class, 'updateStatus'])->middleware(
             'permission:manage_users'
         );
 

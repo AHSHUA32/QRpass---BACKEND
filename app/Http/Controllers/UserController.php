@@ -74,6 +74,39 @@ class UserController extends Controller
         |--------------------------------------------------------------------------
         */
 
+
+        // QRPASS_STUDENT_ACADEMIC_V105: validate student fields provided by System Administrator.
+        $academic = $request->validate([
+            'college' => ['nullable', 'string', Rule::in([
+                'College of Allied Engineering',
+                'College of Arts and Sciences',
+                'College of Business and Accountancy',
+                'College of Computer Studies',
+                'College of Criminal Justice',
+                'College of Customs Administration',
+                'College of Hospitality Management',
+                'College of Nursing',
+                'College of Social Work',
+                'College of Teacher Education',
+            ])],
+            'year_level' => ['nullable', 'string', Rule::in([
+                'Senior High School', '1st Year', '2nd Year', '3rd Year', '4th Year'
+            ])],
+        ]);
+
+        if ($validated['role'] === 'student') {
+            if (empty($academic['year_level'])) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'year_level' => 'Year level is required for student accounts.'
+                ]);
+            }
+            if ($academic['year_level'] !== 'Senior High School' && empty($academic['college'])) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'college' => 'Department is required for college students.'
+                ]);
+            }
+        }
+
         $user = User::create([
             'name' =>
                 $validated['name'],
@@ -86,6 +119,10 @@ class UserController extends Controller
 
             'role' =>
                 $validated['role'],
+            'college' => $validated['role'] === 'student' && $academic['year_level'] !== 'Senior High School'
+                ? $academic['college'] : null,
+            'year_level' => $validated['role'] === 'student'
+                ? $academic['year_level'] : null,
 
             'status' =>
                 'approved',
@@ -247,6 +284,39 @@ class UserController extends Controller
         |--------------------------------------------------------------------------
         */
 
+
+        // QRPASS_STUDENT_ACADEMIC_V105: validate student fields provided by System Administrator.
+        $academic = $request->validate([
+            'college' => ['nullable', 'string', Rule::in([
+                'College of Allied Engineering',
+                'College of Arts and Sciences',
+                'College of Business and Accountancy',
+                'College of Computer Studies',
+                'College of Criminal Justice',
+                'College of Customs Administration',
+                'College of Hospitality Management',
+                'College of Nursing',
+                'College of Social Work',
+                'College of Teacher Education',
+            ])],
+            'year_level' => ['nullable', 'string', Rule::in([
+                'Senior High School', '1st Year', '2nd Year', '3rd Year', '4th Year'
+            ])],
+        ]);
+
+        if ($validated['role'] === 'student') {
+            if (empty($academic['year_level'])) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'year_level' => 'Year level is required for student accounts.'
+                ]);
+            }
+            if ($academic['year_level'] !== 'Senior High School' && empty($academic['college'])) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'college' => 'Department is required for college students.'
+                ]);
+            }
+        }
+
         $oldValues = [
             'name' =>
                 $user->name,
@@ -279,6 +349,12 @@ class UserController extends Controller
 
         $user->role =
             $validated['role'];
+
+        if ($validated['role'] === 'student') {
+            $user->year_level = $academic['year_level'];
+            $user->college = $academic['year_level'] === 'Senior High School'
+                ? null : $academic['college'];
+        }
 
         $user->save();
 
