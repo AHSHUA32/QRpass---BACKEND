@@ -1,0 +1,107 @@
+<?php
+namespace App\Http\Controllers;
+
+use App\Models\User;
+use App\Services\AuditLogger;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+
+// QRPASS_PERMANENT_ACCESS_V91 — no user deletion; stores revocation history.
+class QrpassAccessRevocationController extends Controller
+{
+    public function updateStatus(Request $request, $id)
+    {
+        $request->validate(['status' => 'required|in:approved,inactive']);
+        $actor = $request->user();
+        return DB::transaction(function () use ($request, $id, $actor) {
+            $user = User::whereKey($id)->lockForUpdate()->firstOrFail();
+            if ((int)$actor->id === (int)$user->id && $request->status === 'inactive') {
+                return response()->json(['message' => 'You cannot disable your own administrator account.'], 422);
+            }
+            $previous = (string)$user->status;
+            $user->status = $request->status;
+            $user->save();
+            if ($user->status === 'inactive') $user->tokens()->delete();
+            AuditLogger::log(
+                action: $user->status === 'inactive' ? 'deactivate_user' : 'activate_user',
+                description: $actor->name . ($user->status === 'inactive' ? ' disabled ' : ' enabled ') . $user->name . ' QRPass account.',
+                eventType: 'status_change', module: 'User Management', status: 'success',
+                metadata: ['target_user_id' => $user->id, 'username' => $user->username,
+                    'previous_status' => $previous, 'new_status' => $user->status], user: $actor
+            );
+            return response()->json(['message' => $user->status === 'inactive'
+                ? 'Account disabled; active sessions terminated. You can enable it later.'
+                : 'Account enabled successfully.', 'user' => $user]);
+        });
+    }
+
+    public function revoke(Request $request, $id)
+    {
+        // QRPASS_ATOMIC_REVOKE_DENYLIST_V180
+        $data = $request->validate(['reason' => 'required|string|min:5|max:500']);
+        $actor = $request->user();
+
+        try {
+            return DB::transaction(function () use ($actor, $id, $data) {
+                $target = User::whereKey($id)->lockForUpdate()->firstOrFail();
+
+                if ((int) $actor->id === (int) $target->id) {
+                    return response()->json(['message' => 'You cannot revoke your own administrator account.'], 422);
+                }
+
+                if ($target->role === 'sysadmin' &&
+                    User::where('role', 'sysadmin')->where('status', 'approved')->count() <= 1) {
+                    return response()->json(['message' => 'Cannot delete the last active administrator.'], 422);
+                }
+
+                // Avoid accidental cascading deletion of items, permits and audit history.
+                // If any related record exists, fail safely with no blacklist entry committed.
+                if (DB::getDriverName() === 'mysql') {
+                    $refs = DB::select("SELECT TABLE_NAME AS t, COLUMN_NAME AS c
+                      FROM information_schema.KEY_COLUMN_USAGE
+                      WHERE REFERENCED_TABLE_SCHEMA = DATABASE() AND REFERENCED_TABLE_NAME = 'users'");
+                    foreach ($refs as $ref) {
+                        $table = (string) $ref->t;
+                        $col = (string) $ref->c;
+                        if ($table === 'personal_access_tokens') continue;
+                        if (DB::table($table)->where($col, $target->id)->exists()) {
+                            throw new \DomainException('RELATED_RECORDS');
+                        }
+                    }
+                }
+
+                $username = trim((string) $target->username);
+                $email = strtolower(trim((string) $target->email));
+                foreach (['id' => $username, 'email' => $email] as $kind => $value) {
+                    if ($value === '') continue;
+                    DB::table('qrpass_blocked_identifiers')->updateOrInsert(
+                        ['kind' => $kind, 'identifier_hash' => hash('sha256', $value)],
+                        ['created_at' => now(), 'updated_at' => now()]
+                    );
+                }
+
+                AuditLogger::log(
+                    action: 'permanent_revoke_user',
+                    description: $actor->name . ' permanently revoked and deleted account "' . $target->name . '".',
+                    eventType: 'delete', module: 'User Management', status: 'success',
+                    metadata: ['target_user_id' => $target->id, 'role' => $target->role,
+                      'reason' => trim($data['reason']), 'permanent' => true],
+                    user: $actor
+                );
+
+                $target->tokens()->delete();
+                $target->forceDelete();
+                return response()->json([
+                    'message' => 'Account permanently deleted. Email and ID number blocked from future registration. Sessions revoked.'
+                ]);
+            });
+        } catch (\DomainException $e) {
+            return response()->json([
+              'message' => 'Permanent deletion blocked because this account has related item, permit, or security records. Nothing was deleted or blocked. Reassign or preserve the dependent records before retrying.'
+            ], 409);
+        } catch (\Illuminate\Database\QueryException $e) {
+            \Illuminate\Support\Facades\Log::error('QRPass permanent revoke database error', ['id' => $id, 'error' => $e->getMessage()]);
+            return response()->json(['message' => 'Deletion was blocked by the database. No changes committed; check server logs.'], 409);
+        }
+    }
+}

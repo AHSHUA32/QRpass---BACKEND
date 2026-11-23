@@ -1,4 +1,5 @@
 <?php
+// QRPASS_DIGITS_ONLY_ID_V178: IDs are numeric strings; existing records are not changed.
 
 namespace App\Http\Controllers;
 
@@ -34,6 +35,20 @@ class UserController extends Controller
 
     public function store(Request $request)
     {
+        // QRPASS_ATOMIC_REVOKE_DENYLIST_V180
+        $idNumber = trim((string) $request->input('username', ''));
+        $emailAddress = strtolower(trim((string) $request->input('email', '')));
+        if (
+            \Illuminate\Support\Facades\DB::table('qrpass_blocked_identifiers')
+                ->where('kind', 'id')->where('identifier_hash', hash('sha256', $idNumber))->exists()
+            || \Illuminate\Support\Facades\DB::table('qrpass_blocked_identifiers')
+                ->where('kind', 'email')->where('identifier_hash', hash('sha256', $emailAddress))->exists()
+        ) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'username' => 'This ID number or email address is not eligible for registration.'
+            ]);
+        }
+
         $validated = $request->validate([
             'name' => [
                 'required',
@@ -51,7 +66,8 @@ class UserController extends Controller
             'username' => [
                 'required',
                 'string',
-                'max:255',
+                'max:20',
+                'regex:/^[0-9]+$/',
                 'unique:users,username',
             ],
 
@@ -238,7 +254,8 @@ class UserController extends Controller
                 'username' => [
                     'required',
                     'string',
-                    'max:255',
+                    'max:20',
+                    'regex:/^[0-9]+$/',
 
                     Rule::unique(
                         'users',

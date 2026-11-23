@@ -28,6 +28,23 @@ class AuthController extends Controller
                 'required|string',
         ]);
 
+        // QRPASS_REVOKED_ID_MESSAGES_V182
+        // A revoked ID always gets this response, even during a prior lockout.
+        // Other users keep the existing login rate limiter unchanged.
+        $loginId = trim((string) $request->input('username',''));
+        if (
+            \Illuminate\Support\Facades\Schema::hasTable('qrpass_blocked_identifiers')
+            && \Illuminate\Support\Facades\DB::table('qrpass_blocked_identifiers')
+                ->where('kind', 'id')
+                ->where('identifier_hash', hash('sha256', $loginId))
+                ->exists()
+        ) {
+            return response()->json([
+                'message' => 'This ID number has been revoked and can no longer access the QRPass system.'
+            ], 403);
+        }
+
+
         /*
         |--------------------------------------------------------------------------
         | SYSTEM SETTINGS
@@ -890,6 +907,41 @@ class AuthController extends Controller
     public function register(
         Request $request
     ) {
+        // QRPASS_ATOMIC_REVOKE_DENYLIST_V180
+        $idNumber = trim((string) $request->input('username', ''));
+        $emailAddress = strtolower(trim((string) $request->input('email', '')));
+        if (
+            \Illuminate\Support\Facades\DB::table('qrpass_blocked_identifiers')
+                ->where('kind', 'id')->where('identifier_hash', hash('sha256', $idNumber))->exists()
+            || \Illuminate\Support\Facades\DB::table('qrpass_blocked_identifiers')
+                ->where('kind', 'email')->where('identifier_hash', hash('sha256', $emailAddress))->exists()
+        ) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'username' => 'This ID number or email address is not eligible for registration.'
+            ]);
+        }
+
+        
+        // QRPASS_REVOKED_ID_MESSAGES_V182
+        $blockedRegistrationId = trim((string)$request->input('username', ''));
+        $blockedRegistrationEmail = strtolower(trim((string)$request->input('email', '')));
+        if (
+            \Illuminate\Support\Facades\Schema::hasTable('qrpass_blocked_identifiers') &&
+            (
+                \Illuminate\Support\Facades\DB::table('qrpass_blocked_identifiers')
+                    ->where('kind', 'id')
+                    ->where('identifier_hash', hash('sha256', $blockedRegistrationId))->exists()
+                ||
+                \Illuminate\Support\Facades\DB::table('qrpass_blocked_identifiers')
+                    ->where('kind', 'email')
+                    ->where('identifier_hash', hash('sha256', $blockedRegistrationEmail))->exists()
+            )
+        ) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'username' => 'This ID number or email address has been revoked and cannot be used to register or access the QRPass system.'
+            ]);
+        }
+
         $request->validate([
             'name' =>
                 'required|string|max:255|not_regex:/[0-9]/',

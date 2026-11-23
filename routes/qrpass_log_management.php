@@ -74,6 +74,38 @@ Route::middleware('auth:sanctum')->prefix('sysadmin/manage-audit-logs')->group(f
     });
     // QRPass Manage Logs independent delete v3: independent, authorized, date-scoped deletion.
     // Archive remains a separate optional feature. Cleanup metadata is persisted outside audit_logs.
+    // QRPASS_MANAGE_DELETE_UNIFORM_V191 - permanently delete selected audit logs only.
+    Route::post('/delete-ids', function (Request $request) use ($qrpassGuard) {
+        $admin = $qrpassGuard($request);
+        $input = $request->validate([
+            'ids' => 'required|array|min:1|max:500',
+            'ids.*' => 'required|integer|min:1|distinct',
+            'confirmation' => 'required|in:DELETE SELECTED LOGS',
+        ]);
+        $ids = $input['ids'];
+        $matched = DB::table('audit_logs')->whereIn('id', $ids)->count();
+        if (!$matched) return response()->json(['message' => 'No matching logs remain.'], 422);
+        $disk = Storage::disk('local');
+        $historyPath = 'qrpass-log-archives/protected-cleanup-history.jsonl';
+        $event = [
+            'action' => 'selected_delete', 'requested_by' => $admin->id,
+            'ids' => $ids, 'matched_count' => $matched, 'at' => now()->toIso8601String()
+        ];
+        try {
+            $disk->append($historyPath, json_encode($event + ['state' => 'requested'], JSON_THROW_ON_ERROR));
+            if (!$disk->exists($historyPath)) abort(500,'Cleanup history unavailable. No logs deleted.');
+        } catch (\Throwable $e) {
+            abort(500,'Cleanup history unavailable. No logs deleted.');
+        }
+        $deleted = DB::transaction(function () use ($ids) {
+            return DB::table('audit_logs')->whereIn('id', $ids)->delete();
+        });
+        $disk->append($historyPath, json_encode($event + [
+            'state' => 'completed', 'deleted_count' => $deleted, 'completed_at' => now()->toIso8601String()
+        ], JSON_THROW_ON_ERROR));
+        return response()->json(['deleted_count' => $deleted, 'message' => 'Selected audit logs deleted.']);
+    });
+
     Route::post('/delete-direct', function (Request $request) use ($qrpassGuard, $qrpassWindow) {
         $admin = $qrpassGuard($request);
         $request->validate(['confirmation' => 'required|in:DELETE LOGS']);
