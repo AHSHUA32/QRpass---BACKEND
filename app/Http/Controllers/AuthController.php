@@ -942,12 +942,14 @@ class AuthController extends Controller
             ]);
         }
 
+        // QRPASS_GMAIL_DIAGNOSTICS_V2
+        $request->merge(['email' => strtolower(trim((string) $request->input('email', '')))]);
         $request->validate([
             'name' =>
                 'required|string|max:255|not_regex:/[0-9]/',
 
             'email' =>
-                'required|email|unique:users,email',
+                'required|email|regex:/^[^@\s]+@gmail\.com$/i|unique:users,email',
 
             'username' =>
                 'required|digits_between:1,20|unique:users,username',
@@ -966,8 +968,63 @@ class AuthController extends Controller
 
             'password' =>
                 'required|string|min:6',
+        ], [
+            'email.required' => 'Please enter your Gmail address.',
+            'email.email' => 'Please enter a valid Gmail address.',
+            'email.regex' => 'Please use a valid @gmail.com address.',
+            'email.unique' => 'This Gmail address is already registered.',
         ]);
 
+        // QRPASS_GMAIL_VERIFICATION_V1
+        $request->validate(['verification_code' => 'nullable|digits:6']);
+        $gmail = strtolower(trim((string) $request->email));
+        $payload = $request->only(['name','username','password','role','college','year_level','contact_number']);
+        $fingerprint = hash_hmac('sha256', json_encode($payload, JSON_THROW_ON_ERROR), (string) config('app.key'));
+        $key = 'qrpass_registration_gmail_' . hash('sha256', $gmail);
+        $limiter = \Illuminate\Support\Facades\RateLimiter::class;
+        if (!$request->filled('verification_code')) {
+            $mailKey = $key . ':send';
+            $ipKey = 'qrpass_registration_send_ip_' . hash('sha256', (string) $request->ip());
+            abort_if($limiter::tooManyAttempts($mailKey, 3) || $limiter::tooManyAttempts($ipKey, 15), 429, 'Too many code requests. Try again later.');
+            // QRPASS_GMAIL_RESEND_20S_V1
+            abort_unless(Cache::add($key . ':resend-cooldown', true, 20), 429, 'Please wait 20 seconds before requesting another verification code.');
+            $limiter::hit($mailKey, 600); $limiter::hit($ipKey, 600);
+            $code = (string) random_int(100000, 999999);
+            Cache::put($key, ['code' => Hash::make($code), 'fingerprint' => $fingerprint, 'expires' => now()->addMinutes(10)->timestamp], now()->addMinutes(10));
+            try {
+                abort_if(in_array(config('mail.default'), ['log','array','null'], true), 503, 'Email delivery is not configured.');
+                Mail::raw("Your QRPass account verification code is: " . $code . ". It expires in 10 minutes. Do not share this code.", function ($mail) use ($gmail) {
+                    $mail->to($gmail)->subject('QRPass - Verify your Gmail');
+                });
+            } catch (\Throwable $e) {
+                Cache::forget($key);
+                $detail = $e->getMessage();
+                $reason = match (true) {
+                    in_array(config('mail.default'), ['log','array','null'], true) => 'mailer_not_configured',
+                    preg_match('/\b535\b|5\.7\.8|authentication failed|username and password not accepted/i', $detail) === 1 => 'smtp_authentication_failed',
+                    preg_match('/\b550\b[^\r\n]*5\.1\.1|5\.1\.1[^\r\n]*does not exist/i', $detail) === 1 => 'recipient_rejected',
+                    preg_match('/timed?\s*out|connection refused|could not connect|failed to connect|network is unreachable/i', $detail) === 1 => 'smtp_connection_failed',
+                    default => 'mail_delivery_failed',
+                };
+                \Illuminate\Support\Facades\Log::warning('QRPass registration mail failed', ['reason' => $reason, 'exception_type' => get_class($e)]);
+                if ($reason === 'recipient_rejected') {
+                    return response()->json(['message' => 'The mail server rejected this Gmail address. Check the address and try again.'], 422);
+                }
+                return response()->json(['message' => 'Verification email could not be sent. Please try again later or contact the administrator.'], 503);
+            }
+            return response()->json(['verification_required' => true, 'message' => 'Verification code sent.'], 202);
+        }
+        $lock = Cache::lock($key . ':verify-lock', 30);
+        abort_unless($lock->get(), 429, 'Verification is in progress. Try again.');
+        try {
+            $attemptKey = $key . ':attempt';
+            $ipAttemptKey = 'qrpass_registration_verify_ip_' . hash('sha256', (string) $request->ip());
+            abort_if($limiter::tooManyAttempts($attemptKey, 5) || $limiter::tooManyAttempts($ipAttemptKey, 30), 429, 'Too many verification attempts. Try again later.');
+            $limiter::hit($attemptKey, 600); $limiter::hit($ipAttemptKey, 600);
+            $challenge = Cache::get($key);
+            abort_unless($challenge && $challenge['expires'] > now()->timestamp && hash_equals($challenge['fingerprint'], $fingerprint) && Hash::check((string) $request->verification_code, $challenge['code']), 422, 'Invalid or expired code, or registration details changed. Request a new code if needed.');
+            Cache::forget($key);
+        } finally { $lock->release(); }
         $user =
             User::create([
                 'name' =>
@@ -1004,6 +1061,9 @@ class AuthController extends Controller
                     ),
             ]);
 
+        if (\Illuminate\Support\Facades\Schema::hasColumn('users', 'email_verified_at')) {
+            $user->forceFill(['email_verified_at' => now()])->save();
+        }
         return response()->json([
             'message' =>
                 'Registration successful.',

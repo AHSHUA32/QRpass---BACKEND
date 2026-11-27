@@ -146,7 +146,16 @@ class LostFoundItemController extends Controller
                 'nullable',
                 'required_if:report_type,found',
                 'date',
-                'before_or_equal:today',
+                static function ($attribute, $value, $fail) {
+                    try {
+                        $reported = \Carbon\CarbonImmutable::parse($value, 'Asia/Manila');
+                        if ($reported->greaterThan(\Carbon\CarbonImmutable::now('Asia/Manila'))) {
+                            $fail('The date and time must not be in the future.');
+                        }
+                    } catch (\Throwable $e) {
+                        $fail('Please enter a valid date and time.');
+                    }
+                } /* QRPASS_LOST_FOUND_MANILA_TIME_V1 */,
             ],
 
             /*
@@ -166,7 +175,16 @@ class LostFoundItemController extends Controller
                 'nullable',
                 'required_if:report_type,lost',
                 'date',
-                'before_or_equal:today',
+                static function ($attribute, $value, $fail) {
+                    try {
+                        $reported = \Carbon\CarbonImmutable::parse($value, 'Asia/Manila');
+                        if ($reported->greaterThan(\Carbon\CarbonImmutable::now('Asia/Manila'))) {
+                            $fail('The date and time must not be in the future.');
+                        }
+                    } catch (\Throwable $e) {
+                        $fail('Please enter a valid date and time.');
+                    }
+                } /* QRPASS_LOST_FOUND_MANILA_TIME_V1 */,
             ],
         ]);
 
@@ -462,7 +480,16 @@ if ($request->hasFile('photo')) {
             $rules['date_found'] = [
                 'required',
                 'date',
-                'before_or_equal:now',
+                static function ($attribute, $value, $fail) {
+                    try {
+                        $reported = \Carbon\CarbonImmutable::parse($value, 'Asia/Manila');
+                        if ($reported->greaterThan(\Carbon\CarbonImmutable::now('Asia/Manila'))) {
+                            $fail('The date and time must not be in the future.');
+                        }
+                    } catch (\Throwable $e) {
+                        $fail('Please enter a valid date and time.');
+                    }
+                } /* QRPASS_LOST_FOUND_MANILA_TIME_V1 */,
             ];
         } else {
             $rules['lost_by_identifier'] = [
@@ -480,7 +507,16 @@ if ($request->hasFile('photo')) {
             $rules['date_lost'] = [
                 'required',
                 'date',
-                'before_or_equal:now',
+                static function ($attribute, $value, $fail) {
+                    try {
+                        $reported = \Carbon\CarbonImmutable::parse($value, 'Asia/Manila');
+                        if ($reported->greaterThan(\Carbon\CarbonImmutable::now('Asia/Manila'))) {
+                            $fail('The date and time must not be in the future.');
+                        }
+                    } catch (\Throwable $e) {
+                        $fail('Please enter a valid date and time.');
+                    }
+                } /* QRPASS_LOST_FOUND_MANILA_TIME_V1 */,
             ];
         }
 
@@ -801,7 +837,16 @@ if ($request->hasFile('photo')) {
             'date_found' => [
                 'required',
                 'date',
-                'before_or_equal:now',
+                static function ($attribute, $value, $fail) {
+                    try {
+                        $reported = \Carbon\CarbonImmutable::parse($value, 'Asia/Manila');
+                        if ($reported->greaterThan(\Carbon\CarbonImmutable::now('Asia/Manila'))) {
+                            $fail('The date and time must not be in the future.');
+                        }
+                    } catch (\Throwable $e) {
+                        $fail('Please enter a valid date and time.');
+                    }
+                } /* QRPASS_LOST_FOUND_MANILA_TIME_V1 */,
             ],
         ]);
 

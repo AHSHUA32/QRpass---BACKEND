@@ -18,13 +18,14 @@ class OperationalLogController extends Controller
         'items' => 'registered_items',
     ];
 
-    private function records(string $module, bool $archived): Builder
+    private function records(string $module, bool $archived, ?string $direction = null): Builder
     {
         if ($module === 'scans') {
             $query = DB::table('scan_logs as records')
                 ->join('users as scanner', 'scanner.id', '=', 'records.scanned_by')
                 ->leftJoin('registered_items as items', 'items.id', '=', 'records.registered_item_id')
                 ->where('scanner.role', 'security');
+            if ($direction !== null) $query->where('records.direction', $direction);
         } elseif ($module === 'resolved-incidents') {
             $query = DB::table('security_incidents as records')
                 ->join('users as reporter', 'reporter.id', '=', 'records.reported_by')
@@ -62,8 +63,8 @@ class OperationalLogController extends Controller
     public function index(Request $request, string $module)
     {
         $this->ensureStorage($module);
-        $validated = $request->validate(['view' => 'required|in:active,archived']);
-        $query = $this->records($module, $validated['view'] === 'archived');
+        $validated = $request->validate(['view' => 'required|in:active,archived', 'direction' => 'nullable|in:IN,OUT']);
+        $query = $this->records($module, $validated['view'] === 'archived', $validated['direction'] ?? null);
 
         $columns = match ($module) {
             'scans' => ['items.item_name as title', 'records.gate', 'records.direction', 'scanner.name as person',
@@ -82,26 +83,40 @@ class OperationalLogController extends Controller
     public function action(Request $request, string $module)
     {
         $this->ensureStorage($module);
-        abort_if($request->input('action') === 'delete', 403, 'Permanent deletion is prohibited for operational logs.');
+        // QRPASS_PCO_FUNCTIONAL_V3: PCO item records only; CSU deletion stays prohibited.
+        $deleting = $request->input('action') === 'delete';
+        // QRPASS_CSU_MANAGE_V1: preserve role and module boundaries.
+        $allowed = in_array($module, ['requests', 'items'], true) ? $request->user()->role === 'pco' : (in_array($module, ['scans', 'resolved-incidents'], true) && $request->user()->role === 'security');
+        abort_if($deleting && !$allowed, 403, 'Permanent deletion is prohibited for this module.');
+        abort_if($deleting && $request->input('confirmation') !== 'DELETE', 422, 'Deletion confirmation required.');
         $validated = $request->validate([
-            'action' => 'required|in:archive,restore',
+            'action' => 'required|in:archive,restore,delete',
+            'view' => 'required_if:action,delete|in:active,archived',
+            'direction' => 'nullable|in:IN,OUT',
             'ids' => 'required|array|min:1',
             'ids.*' => 'required|integer|min:1|distinct',
         ]);
         $action = $validated['action'];
         $ids = array_map('intval', $validated['ids']);
         sort($ids);
-        $restoring = $action === 'restore';
+        $restoring = $action === 'restore' || ($action === 'delete' && $request->input('view') === 'archived');
 
         $affected = DB::transaction(function () use ($request, $module, $action, $ids, $restoring) {
-            $records = $this->records($module, $restoring)->whereIntegerInRaw('records.id', $ids);
+            $records = $this->records($module, $restoring, $request->input('direction'))->whereIntegerInRaw('records.id', $ids);
             $eligible = (clone $records)->orderBy('records.id')->lockForUpdate()->pluck('records.id');
             abort_unless($eligible->count() === count($ids), 409, 'Some selected records are no longer available in this view. Refresh and try again.');
 
             $now = now();
             $table = self::TABLES[$module];
-            $affected = DB::table($table)->whereIntegerInRaw('id', $ids)
-                ->update([self::ARCHIVED_AT => $restoring ? null : $now]);
+            if ($action === 'delete') {
+                abort_if(in_array($module, ['requests', 'items'], true) && (DB::table('scan_logs')->whereIn('registered_item_id', $ids)->exists() ||
+                    DB::table('security_incidents')->whereIn('registered_item_id', $ids)->exists()),
+                    409, 'Items with scan or incident history cannot be permanently deleted. Archive them instead.');
+                $affected = DB::table($table)->whereIntegerInRaw('id', $ids)->delete();
+            } else {
+                $affected = DB::table($table)->whereIntegerInRaw('id', $ids)
+                    ->update([self::ARCHIVED_AT => $restoring ? null : $now]);
+            }
 
             DB::table('qrpass_management_history')->insert([
                 'module' => 'operational-' . $module,
