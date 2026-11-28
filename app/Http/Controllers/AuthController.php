@@ -989,6 +989,33 @@ class AuthController extends Controller
             // QRPASS_GMAIL_RESEND_20S_V1
             abort_unless(Cache::add($key . ':resend-cooldown', true, 20), 429, 'Please wait 20 seconds before requesting another verification code.');
             $limiter::hit($mailKey, 600); $limiter::hit($ipKey, 600);
+            // QRPASS_STRICT_MAILBOX_V2
+            $validationKey = trim((string) config('qrpass_email.validation_key'));
+            if ($validationKey === '') {
+                return response()->json(['message' => 'Email verification service is not configured. Contact the administrator.'], 503);
+            }
+            try {
+                $mailboxResponse = \Illuminate\Support\Facades\Http::connectTimeout(5)->timeout(35)->acceptJson()->get('https://api.zerobounce.net/v2/validate', ['api_key' => $validationKey, 'email' => $gmail, 'ip_address' => '']);
+                $mailbox = $mailboxResponse->json();
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('QRPass mailbox check unavailable');
+                return response()->json(['message' => 'Unable to verify your Gmail right now. Please try again later.'], 503);
+            }
+            if (!$mailboxResponse->successful() || !is_array($mailbox) || strtolower((string) ($mailbox['address'] ?? '')) !== $gmail) {
+                return response()->json(['message' => 'Email verification service unavailable. Please try again later.'], 503);
+            }
+            $mailboxStatus = strtolower((string) ($mailbox['status'] ?? ''));
+            $mailboxSubStatus = strtolower((string) ($mailbox['sub_status'] ?? ''));
+            \Illuminate\Support\Facades\Log::info('QRPass mailbox check V2', ['status' => $mailboxStatus, 'sub_status' => $mailboxSubStatus]);
+            if ($mailboxStatus === 'invalid' && $mailboxSubStatus === 'mailbox_not_found') {
+                return response()->json(['message' => 'This Gmail address does not appear to exist. Please check your email address.'], 422);
+            }
+            if ($mailboxStatus === 'invalid') {
+                return response()->json(['message' => 'This Gmail address is invalid or unavailable. Please check your email address.'], 422);
+            }
+            if ($mailboxStatus !== 'valid' || $mailboxSubStatus !== '' || ($mailbox['catchall_domain'] ?? null) !== false || !in_array($mailbox['mx_found'] ?? null, [true, 'true'], true)) {
+                return response()->json(['message' => 'Unable to confirm this Gmail address. Please try another Gmail or try again later.'], 422);
+            }
             $code = (string) random_int(100000, 999999);
             Cache::put($key, ['code' => Hash::make($code), 'fingerprint' => $fingerprint, 'expires' => now()->addMinutes(10)->timestamp], now()->addMinutes(10));
             try {
@@ -1012,7 +1039,7 @@ class AuthController extends Controller
                 }
                 return response()->json(['message' => 'Verification email could not be sent. Please try again later or contact the administrator.'], 503);
             }
-            return response()->json(['verification_required' => true, 'message' => 'Verification code sent.'], 202);
+            return response()->json(['verification_required' => true, 'mailbox_prechecked' => true, 'message' => 'Verification code sent.'], 202);
         }
         $lock = Cache::lock($key . ':verify-lock', 30);
         abort_unless($lock->get(), 429, 'Verification is in progress. Try again.');
@@ -1156,7 +1183,7 @@ class AuthController extends Controller
                         $code
                     ),
             ],
-            now()->addMinutes(10)
+            now()->addSeconds(60)
         );
 
         /*
@@ -1603,7 +1630,7 @@ YOUR VERIFICATION CODE
 </div>
 
 <p style="font-size:13px;line-height:1.7;color:#64748b;">
-This verification code expires in <strong>10 minutes</strong>.
+This verification code expires in <strong>1 minute</strong>.
 </p>
 
 <div style="margin-top:22px;padding-top:17px;border-top:1px solid #e2e8f0;">

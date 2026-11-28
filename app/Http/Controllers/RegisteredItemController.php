@@ -522,10 +522,8 @@ class RegisteredItemController extends Controller
                 STR_PAD_LEFT
             );
 
-        $item->qr_expires_at =
-            $approvedAt->copy()->addMonths(
-                $validityMonths
-            );
+            $item->qr_expires_at =
+            $approvedAt->copy()->addMonths($validityMonths);
 
         $item->save();
 
@@ -634,6 +632,7 @@ class RegisteredItemController extends Controller
     */
     public function verify(Request $request)
     {
+        // QRPASS_CSU_QR_ONLY_V1
         $request->validate([
             'code' =>
                 'required|string',
@@ -644,10 +643,7 @@ class RegisteredItemController extends Controller
                 'qr_code',
                 $request->code
             )
-            ->orWhere(
-                'serial_number',
-                $request->code
-            )
+            
             ->first();
 
         if (!$item) {

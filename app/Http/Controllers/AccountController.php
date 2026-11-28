@@ -53,10 +53,32 @@ class AccountController extends Controller
             ],
         ]);
 
-        $user->name = $validated['name'];
-        $user->email = $validated['email'] ?? null;
-
-        $user->save();
+        // QRPASS_ACCOUNT_SAVE_ONLY_V1
+        $photo = $request->validate([
+            'photo_action' => ['nullable', Rule::in(['replace', 'remove'])],
+            'profile_photo' => ['required_if:photo_action,replace', 'nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+        ]);
+        $previousPhoto = $user->profile_photo;
+        $newPhoto = null;
+        if (($photo['photo_action'] ?? null) === 'replace') {
+            $newPhoto = $request->file('profile_photo')->store('profile-photos', 'public');
+            if (!$newPhoto || !Storage::disk('public')->exists($newPhoto)) {
+                return response()->json(['message' => 'Unable to save profile photo.'], 500);
+            }
+        }
+        try {
+            $user->name = $validated['name'];
+            $user->email = $validated['email'] ?? null;
+            if (($photo['photo_action'] ?? null) === 'replace') $user->profile_photo = $newPhoto;
+            if (($photo['photo_action'] ?? null) === 'remove') $user->profile_photo = null;
+            $user->save();
+        } catch (\Throwable $e) {
+            if ($newPhoto) Storage::disk('public')->delete($newPhoto);
+            throw $e;
+        }
+        if ($previousPhoto && $previousPhoto !== $user->profile_photo) {
+            try { Storage::disk('public')->delete($previousPhoto); } catch (\Throwable $e) { report($e); }
+        }
 
         return response()->json([
             'message' => 'Account information updated successfully.',
@@ -130,16 +152,26 @@ class AccountController extends Controller
             ],
         ]);
 
-        if ($user->profile_photo) {
-            Storage::disk('public')->delete($user->profile_photo);
-        }
+        // QRPASS_ACCOUNT_PHOTO_SYNC_V1
+        $previousPhoto = $user->profile_photo;
 
         $path = $request
             ->file('profile_photo')
             ->store('profile-photos', 'public');
 
-        $user->profile_photo = $path;
-        $user->save();
+        if (!$path || !Storage::disk('public')->exists($path)) {
+            return response()->json(['message' => 'Unable to save profile photo.'], 500);
+        }
+        try {
+            $user->profile_photo = $path;
+            $user->save();
+        } catch (\Throwable $e) {
+            Storage::disk('public')->delete($path);
+            throw $e;
+        }
+        if ($previousPhoto && $previousPhoto !== $path) {
+            Storage::disk('public')->delete($previousPhoto);
+        }
 
         return response()->json([
             'message' => 'Profile photo updated successfully.',

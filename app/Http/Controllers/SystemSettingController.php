@@ -178,11 +178,7 @@ class SystemSettingController extends Controller
         |
         */
 
-        if (
-            (bool) $validated[
-                'two_factor_enabled'
-            ]
-        ) {
+        if ((bool) $validated['two_factor_enabled']) {
             $approvedUsers =
                 User::where(
                     'status',

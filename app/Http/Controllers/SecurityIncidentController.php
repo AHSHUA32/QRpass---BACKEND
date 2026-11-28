@@ -82,6 +82,25 @@ class SecurityIncidentController extends Controller
             ]);
         }
 
+        // QRPASS_FLAG_IDENTITY_VALIDATION_V1
+        if ($request->user()->role === 'security') {
+            $request->validate([
+                'owner_name' => ['required', 'string', 'max:255'],
+                'owner_id_number' => ['required', 'string', 'max:100', 'regex:/^[0-9]+$/D'],
+                'carrier_name' => ['required', 'string', 'max:255'],
+                'carrier_id_number' => ['required', 'string', 'max:100', 'regex:/^[0-9]+$/D'],
+            ]);
+            $normalize = static fn ($name) => mb_strtolower(trim(preg_replace('/\s+/u', ' ', (string) $name)), 'UTF-8');
+            foreach (['owner' => 'Owner', 'carrier' => 'Carrier'] as $key => $label) {
+                $student = \App\Models\User::where('role', 'student')->where('username', $request->input($key . '_id_number'))->first();
+                if (!$student || $normalize($student->name) !== $normalize($request->input($key . '_name'))) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        $key . '_id_number' => [$label . ' name and Student ID do not match a registered student. Please check your details.'],
+                    ]);
+                }
+            }
+        }
+
         $incident = SecurityIncident::create([
             'reported_by' =>
                 $request->user()->id,

@@ -81,6 +81,8 @@ class UserController extends Controller
                 'string',
                 'min:6',
             ],
+        ], [
+            'username.unique' => 'This ID number has already been taken.',
         ]);
 
 
